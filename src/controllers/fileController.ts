@@ -3,8 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import multer from 'multer';
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const PORT = process.env.PORT || 5000;
+
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
 
 function ensureDirectoryExistence(dirPath: string) {
   if (!fs.existsSync(dirPath)) {
@@ -51,7 +57,7 @@ export const uploadFile = (req: Request, res: Response) => {
   const safeType = fileType.toLowerCase().replace(/[^a-z]/g, '');
   const safePath = customPath.replace(/[^a-zA-Z0-9/_-]/g, '');
 
-  const fileUrl = `http://localhost:${PORT}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${req.file.filename}`;
+  const fileUrl = `${BASE_URL}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${req.file.filename}`;
 
   res.status(200).json({ url: fileUrl });
 };
@@ -70,7 +76,7 @@ export const uploadFiles = (req: Request, res: Response) => {
 
   const files = (req.files as Express.Multer.File[]).map(file => ({
     filename: file.filename,
-    url: `http://localhost:${PORT}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${file.filename}`,
+    url: `${BASE_URL}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${file.filename}`,
   }));
 
   res.status(200).json({ files });
@@ -90,7 +96,7 @@ export const listFiles = async (req: Request, res: Response) => {
     const files = await fsPromises.readdir(basePath);
     const fileInfos = files.map((filename) => ({
       filename,
-      url: `http://localhost:${PORT}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${filename}`,
+      url: `${BASE_URL}/uploads/${safeType}/${safePath ? safePath + '/' : ''}${filename}`,
     }));
     res.json(fileInfos);
   } catch (err) {
