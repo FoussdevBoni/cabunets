@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
-        name: "React TSX Tailwind Template",
-        short_name: "ReactTTT PWA",
+        name: "Cabunets",
+        short_name: "Cabunets",
         theme_color: "#ffffff",
         icons: [
           {

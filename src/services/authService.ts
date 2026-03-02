@@ -1,25 +1,29 @@
 import axios from "axios";
-import { AuthResponse, CurrentUser, Profile, User } from "../utils/database";
+import { AuthResponse, CurrentUser, Profile, User, UserBase } from "../utils/database";
+import { API_URL } from "../utils/api";
 
 
 export type Role = User["role"];
 
 
 
-const API_BASE = "http://localhost:5000/api";
 
 export const authService = {
   async register(
     email: string,
     password: string,
+    username: string,
+    avatar: string,
     role: Role,
     profileData?: Partial<Profile>
   ): Promise<AuthResponse> {
     try {
-      const { data } = await axios.post(`${API_BASE}/auth/register`, {
+      const { data } = await axios.post(`${API_URL}/auth/register`, {
         email,
         password,
         role,
+        username,
+        avatar,
         profileData,
       });
       return data;
@@ -30,13 +34,13 @@ export const authService = {
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const { data } = await axios.post(`${API_BASE}/auth/login`, { email, password });
+    const { data } = await axios.post(`${API_URL}/auth/login`, { email, password });
 
     return data;
   },
 
   async getUserProfile(token: string): Promise<CurrentUser> {
-    const { data } = await axios.get(`${API_BASE}/auth/me`, {
+    const { data } = await axios.get(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return {
@@ -58,4 +62,34 @@ export const authService = {
     // On peut juste supprimer le token côté frontend
     return true;
   },
+
+  async updateUser(token: string, userId: string,
+    userBaseData: Partial<UserBase>, userProfile: Profile) {
+
+    const updatedUser = {
+      avatar: userBaseData.avatar,
+      username: userBaseData.username,
+      profileData: userProfile
+    }
+    try {
+      await axios.put(`${API_URL}/auth/${userId}`, updatedUser, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // === Demande reset password OTP ===
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    const { data } = await axios.post(`${API_URL}/auth/request-reset-password`, { email });
+    return data;
+  },
+
+  // === Réinitialisation mot de passe avec OTP ===
+  async resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
+    const { data } = await axios.post(`${API_URL}/auth/reset-password`, { email, otp, newPassword });
+    return data;
+  },
+
 };

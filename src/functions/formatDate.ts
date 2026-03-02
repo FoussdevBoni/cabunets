@@ -1,10 +1,8 @@
-
-export function formatDate(date: string): string {
-    const parsedDate = new Date(date);
-    const day = String(parsedDate.getDate()).padStart(2, '0');
-    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    const year = parsedDate.getFullYear();
-  
-    return `${day}/${month}/${year}`;
+ export const formatDate = (date: Date) => {
+    return new Date(date).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
-  

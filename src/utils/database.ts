@@ -2,12 +2,17 @@ export type Time = 'year' | 'month' | 'week' | 'day'
 export type UserRole = 'company' | 'employee'
 
 
-export type Profile = Vendeur | Admin 
+export type Profile = Vendeur | Admin
 
-export interface User {
-  id: string;
+export interface UserBase {
+  id?: string;
   email: string;
-  role: 'vendeur'  | 'admin',
+  username: string,
+  avatar: string
+  role: 'vendeur' | 'admin',
+}
+export interface User extends UserBase {
+
   profile: Profile
   createdAt?: Date;
   updatedAt?: Date;
@@ -37,16 +42,57 @@ export interface Admin {
 
 
 
-export interface Vendeur  {
-  id: string;
-  nom: string;
-  tel: string;
+export interface Vendeur {
+  id?: string
+  whatsappNumber: string;
+  advantage: string;
   email: string;
-  whatsapp?: string;
-  views?: number;
-  statut: 'accepted' | 'refused' | 'pending' | 'suspended' 
+  avatar?: string
+  username: string
+  networks: {
+    Airtel: boolean;
+    Vodacom: boolean;
+    Africell: boolean;
+    Orange: boolean;
+  };
+
+  photoUrls: string[];
+  paymentAmount: number;
+  availability: string;
+
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
+
+export interface Offre {
+  id?: string
+  vendeurId: string
+  vendeurName: string
+  network: "Airtel" | "Vodacom" | "Africell" | "Orange";
+  priceFC: number;
+  priceUSD: number;
+  units: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+
+export interface Order {
+  id?: string
+  email: string;
+  phoneNumber: string;
+  units: number;
+  price: number;
+  currency: "FC" | "USD";
+  network: string;
+  offerId: string;
+  vendeurId: string;
+  vendeurName: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled",
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export interface Email {
   text: string;

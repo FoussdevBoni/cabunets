@@ -13,7 +13,6 @@ type ProtectedRouteProps = {
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user , loading } = useAuth();
   const userRole = user?.role
-  const profile = user?.profile as Vendeur 
   const location = useLocation();
 
 
@@ -22,10 +21,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  if (userRole &&
-  (profile.statut!=='accepted')) {
-    return <Navigate to="/waiting" state={{ from: location }} replace />;
-  }
+ 
   
 
   if (userRole && !allowedRoles.includes(userRole)) {

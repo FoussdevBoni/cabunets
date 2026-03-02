@@ -1,37 +1,46 @@
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { storage } from "../utils/firebase";
+import axios from "axios";
+import { API_URL } from "../utils/api";
 
-export const uploadFileService = {
-    async uploadFile (file: File, folder: string): Promise<string>{
-        if (!file || !folder) {
-          throw new Error("File and folder are required.");
-        }
-      
-        const storageRef = ref(storage, `${folder}/${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-      
-        return new Promise((resolve, reject) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              console.log(progress)
-            
-            },
-            (error) => {
-              console.error("Error uploading file:", error);
-              reject(error);
-            },
-            async () => {
-              try {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(downloadURL);
-              } catch (error) {
-                console.error("Error getting download URL:", error);
-                reject(error);
-              }
-            }
-          );
-        });
-      }
+
+export interface UploadedData {
+  url: string,
+  fileName: string
 }
+export const fileService = {
+
+  async uploadFile(file: File): Promise<UploadedData> {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await axios.post(`${API_URL}/files/upload`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data.file; // Retourne la réponse du serveur
+    } catch (error: any) {
+      console.error("Erreur lors de l'upload :", error.response?.data || error.message);
+      throw error; // Remonte l'erreur pour gérer côté appelant
+    }
+  },
+
+  async uploadMultipleFiles(files: File[]): Promise<UploadedData[]> {
+    try {
+      const formData = new FormData();
+      files.forEach((file, index) => formData.append("files", file)); // "files" côté serveur
+
+      const response = await axios.post(`${API_URL}/files/upload-multiple`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data?.files || [];
+    } catch (error: any) {
+      console.error("Erreur lors de l'upload multiple :", error.response?.data || error.message);
+      throw error;
+    }
+  }
+};

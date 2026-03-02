@@ -9,5 +9,8 @@ export default function useToken() {
     dispatch(setUser({ ...(userData || {}), token }))
   }
 
-  return { token: userData?.token, saveToken }
+  const deleteToken = ()=>{
+        dispatch(setUser(null))
+  }
+  return { token: userData?.token, saveToken , deleteToken }
 }
