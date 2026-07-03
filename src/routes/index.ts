@@ -4,6 +4,7 @@ import authRoute from './authRoutes'
 import offreRoutes from './offreRoutes'
 import vendeurRoutes from './vendeurRoutes'
 import orderRoutes from './orderRoutes'
+import uploadRoutes from './uploadRoutes'
 
 
 
@@ -17,6 +18,8 @@ router.use('/users', userRoutes);
 router.use('/vendeurs', vendeurRoutes);
 router.use('/offres', offreRoutes);
 router.use('/orders', orderRoutes);
+router.use('/upload', uploadRoutes);
+
 
 
 
