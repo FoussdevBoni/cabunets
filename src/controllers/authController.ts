@@ -105,7 +105,7 @@ export const register = async (req: Request, res: Response) => {
 
 
     if (role === "vendeur") {
-   
+
 
 
       profile = await Vendeur.create({
@@ -118,10 +118,15 @@ export const register = async (req: Request, res: Response) => {
     // 4️⃣ Envoi de l'OTP par email
     //  await sendOtpEmail(user.email, otp);
 
+    const token = generateToken(user._id.toString(), user.role);
+
+
     res.status(201).json({
       message: "Utilisateur créé. Vérifiez votre email pour confirmer le compte.",
       user: { id: user._id, email: user.email, role: user.role, profile },
-    });
+      token
+    }
+    );
 
   } catch (err) {
     console.error("Erreur lors de l’inscription :", err);
@@ -271,7 +276,7 @@ export const getUserProfile = async (req: Request, res: Response) => {
         roleInfo = null;
     }
 
-  
+
 
     res.status(200).json({
       id: user._id,
