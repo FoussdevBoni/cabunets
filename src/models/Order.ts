@@ -10,6 +10,7 @@ export interface IOrder extends Document {
   offerId: string;
   vendeurId: string;
   vendeurName: string;
+  vendeurPhone: string
   status: string;
   createdAt: Date;
   updatedAt: Date;
@@ -17,7 +18,7 @@ export interface IOrder extends Document {
 
 const OrderSchema = new Schema<IOrder>(
   {
-    email: { type: String, required: true },
+    vendeurPhone: { type: String, required: false },
     phoneNumber: { type: String, required: true },
     units: { type: Number, required: true, min: 1 },
     price: { type: Number, required: true },

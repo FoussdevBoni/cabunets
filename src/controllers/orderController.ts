@@ -13,7 +13,7 @@ export const createOrder = async (req: Request, res: Response) => {
     cabupayWhatsappService
       .notifyNewOrder({
         vendeurName: order.vendeurName || 'Vendeur',
-        vendeurPhone:  order.phoneNumber,
+        vendeurPhone:  order.vendeurPhone,
         orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
         network: order.network,
         units: order.units,
@@ -31,6 +31,7 @@ export const createOrder = async (req: Request, res: Response) => {
       order,
     });
   } catch (err: any) {
+    console.log(err)
     res.status(500).json({
       error: 'Erreur lors de la création du order',
       details: err.message || err,
