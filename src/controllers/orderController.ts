@@ -1,48 +1,113 @@
 import { Request, Response } from 'express';
 import { Order } from '../models/Order';
-import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
+import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService';
 
-
-export const createOrder = async (req: Request, res: Response) => {
+/**
+ * Création de la commande PENDING + Initiation du paiement Cabupay (RDC)
+ */
+export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    // 1. Création de la commande en base
-    const order = await Order.create(req.body);
+    const {
+      price,
+      amount,
+      paymentPhone,
+      currency = 'USD',
+      country = 'COD',
+      description,
+      units,
+      network,
+    } = req.body;
 
-    // 2. Notification WhatsApp du vendeur via le microservice cabupay
-    // Exécution en tâche de fond pour ne pas bloquer la réponse de création de commande
-    cabupayWhatsappService
-      .notifyNewOrder({
-        vendeurName: order.vendeurName || 'Vendeur',
-        vendeurPhone:  order.vendeurPhone,
-        orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-        network: order.network,
-        units: order.units,
-        price: order.price,
-        currency: order.currency || 'FC',
-        customerPhone: order.phoneNumber,
-      })
-      .catch((err: any) =>
-        console.error('❌ Erreur lors de l\'envoi WhatsApp asynchrone:', err)
-      );
+    // 1. Validation stricte du numéro de paiement (aucun fallback autorisé)
+    if (!paymentPhone || typeof paymentPhone !== 'string' || !paymentPhone.trim()) {
+      return res.status(400).json({
+        error: 'Le numéro de téléphone pour le paiement (paymentPhone) est obligatoire.',
+      });
+    }
 
-    // 3. Retour de la commande créée
-    res.status(201).json({
-      success: true,
-      order,
+    const targetAmount = price || amount;
+    if (!targetAmount) {
+      return res.status(400).json({
+        error: 'Le prix de la commande (price) est obligatoire.',
+      });
+    }
+
+    // 2. Prédiction dynamique du réseau Mobile Money exclusivement sur paymentPhone
+    let selectedCorrespondent: string | undefined = undefined;
+
+    try {
+      const predictionRes = await cabupayPaymentService.predictCorrespondent(paymentPhone);
+      if (predictionRes?.success && predictionRes?.data?.correspondent) {
+        selectedCorrespondent = predictionRes.data.correspondent;
+      }
+    } catch (predictErr: any) {
+      console.warn(`⚠️ Échec prédiction réseau pour ${paymentPhone}:`, predictErr?.message || predictErr);
+    }
+
+    // Fallback par défaut si Cabupay ne prédit rien
+    if (!selectedCorrespondent) {
+      selectedCorrespondent = 'MPESA_COD';
+    }
+
+    // 3. Création de la commande en BDD avec le bon correspondent
+    const order = await Order.create({
+      ...req.body,
+      correspondent: selectedCorrespondent,
+      country,
+      currency,
+      status: 'PENDING',
     });
+
+    // 4. Description dynamique explicite
+    const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
+
+    // 5. Construction du DTO Cabupay avec le paymentPhone strict
+    const callbackUrl = process.env.CABUPAY_CALLBACK_URL || 'https://cabunets-production.up.railway.app/api/payments/cabupay-callback';
+
+    const depositDTO: CreateDepositDTO = {
+      appId: process.env.CABUPAY_APP_ID || 'CABUNETS',
+      clientReference: order._id.toString(),
+      amount: targetAmount.toString(),
+      currency: currency,
+      phone: paymentPhone,
+      correspondent: selectedCorrespondent,
+      country: country,
+      callbackUrl: callbackUrl,
+      description: finalDescription,
+    };
+
+    // 6. Initiation de la demande de dépôt
+    const paymentResponse = await cabupayPaymentService.createDeposit(depositDTO);
+
+    // 7. Enregistrement du depositId
+    const depositId = paymentResponse?.data?.depositId;
+
+    if (depositId) {
+      order.depositId = depositId;
+      await order.save();
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Commande créée et paiement initialisé',
+      order,
+      payment: paymentResponse,
+    });
+
   } catch (err: any) {
-    console.log(err)
-    res.status(500).json({
-      error: 'Erreur lors de la création du order',
+    console.error('❌ Erreur createOrder:', err.message || err);
+    return res.status(500).json({
+      error: 'Erreur lors de la création de la commande ou de l\'initiation du paiement',
       details: err.message || err,
     });
   }
 };
-
-export const getOrders = async (req: Request, res: Response) => {
+/**
+ * Récupération des commandes avec filtres temporels
+ */
+export const getOrders = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { day, week, month, year, ...filters } = req.query;
-
     let query: any = { ...filters };
 
     if (day || week || month || year) {
@@ -74,45 +139,48 @@ export const getOrders = async (req: Request, res: Response) => {
       }
     }
 
-    const orders = await Order.find(query);
-    res.json(orders);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: 'Erreur lors de la récupération des orders' });
+    const orders = await Order.find(query).sort({ createdAt: -1 });
+    return res.json(orders);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erreur lors de la récupération des commandes' });
   }
 };
 
-export const getOrderById = async (req: Request, res: Response) => {
+/**
+ * Récupérer une commande par son ID
+ */
+export const getOrderById = async (req: Request, res: Response): Promise<Response> => {
   try {
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Order non trouvé' });
-    res.json(order);
-  } catch (err) {
-    res
-      .status(500)
-      .json({ error: 'Erreur lors de la récupération du order' });
+    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
+    return res.json(order);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erreur lors de la récupération de la commande' });
   }
 };
 
-export const updateOrder = async (req: Request, res: Response) => {
+/**
+ * Mettre à jour une commande
+ */
+export const updateOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const order = await Order.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
-    if (!order) return res.status(404).json({ error: 'Order non trouvé' });
-    res.json(order);
-  } catch (err) {
-    res.status(500).json({ error: 'Erreur lors de la mise à jour du order' });
+    const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
+    return res.json(order);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erreur lors de la mise à jour de la commande' });
   }
 };
 
-export const deleteOrder = async (req: Request, res: Response) => {
+/**
+ * Supprimer une commande
+ */
+export const deleteOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
     const order = await Order.findByIdAndDelete(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Order non trouvé' });
-    res.json({ message: 'Order supprimé avec succès' });
-  } catch (err) {
-    res.status(500).json({ error: 'Erreur lors de la suppression du order' });
+    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
+    return res.json({ message: 'Commande supprimée avec succès' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erreur lors de la suppression de la commande' });
   }
 };
