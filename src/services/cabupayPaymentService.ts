@@ -93,7 +93,7 @@ export class CabupayPaymentService {
         country: payload.country,
         callbackUrl: payload.callbackUrl,
         description: payload.description || 'Paiement',
-        payerType: 'MSISDN',
+        payerType: 'MMO',
       };
 
       console.log('[CabupayPaymentService] Envoi de la demande d\'initiation...', body.clientReference);

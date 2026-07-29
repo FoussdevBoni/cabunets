@@ -1,16 +1,14 @@
 import { Request, Response } from 'express';
-import { Order } from '../models/Order';
-import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService';
+import { Order } from '../models/Order'; // Ajuste le chemin selon ton projet
+import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService'; // Ajuste le chemin
 
-/**
- * Création de la commande PENDING + Initiation du paiement Cabupay (RDC)
- */
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
     const {
       price,
       amount,
       paymentPhone,
+      correspondent,
       currency = 'USD',
       country = 'COD',
       description,
@@ -18,10 +16,16 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       network,
     } = req.body;
 
-    // 1. Validation stricte du numéro de paiement (aucun fallback autorisé)
+    // 1. Validation stricte des données requises pour le paiement
     if (!paymentPhone || typeof paymentPhone !== 'string' || !paymentPhone.trim()) {
       return res.status(400).json({
         error: 'Le numéro de téléphone pour le paiement (paymentPhone) est obligatoire.',
+      });
+    }
+
+    if (!correspondent || typeof correspondent !== 'string' || !correspondent.trim()) {
+      return res.status(400).json({
+        error: 'Le moyen de paiement / opérateur (correspondent) est obligatoire.',
       });
     }
 
@@ -32,24 +36,10 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       });
     }
 
-    // 2. Prédiction dynamique du réseau Mobile Money exclusivement sur paymentPhone
-    let selectedCorrespondent: string | undefined = undefined;
+    // 2. Opérateur de paiement transmis directement par le client
+    const selectedCorrespondent = correspondent.trim().toUpperCase();
 
-    try {
-      const predictionRes = await cabupayPaymentService.predictCorrespondent(paymentPhone);
-      if (predictionRes?.success && predictionRes?.data?.correspondent) {
-        selectedCorrespondent = predictionRes.data.correspondent;
-      }
-    } catch (predictErr: any) {
-      console.warn(`⚠️ Échec prédiction réseau pour ${paymentPhone}:`, predictErr?.message || predictErr);
-    }
-
-    // Fallback par défaut si Cabupay ne prédit rien
-    if (!selectedCorrespondent) {
-      selectedCorrespondent = 'MPESA_COD';
-    }
-
-    // 3. Création de la commande en BDD avec le bon correspondent
+    // 3. Création de la commande en BDD avec le moyen de paiement choisi
     const order = await Order.create({
       ...req.body,
       correspondent: selectedCorrespondent,
@@ -58,10 +48,10 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       status: 'PENDING',
     });
 
-    // 4. Description dynamique explicite
+    // 4. Description dynamique (network représente ici le réseau des unités à recharger)
     const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
 
-    // 5. Construction du DTO Cabupay avec le paymentPhone strict
+    // 5. Construction du DTO Cabupay
     const callbackUrl = process.env.CABUPAY_CALLBACK_URL || 'https://cabunets-production.up.railway.app/api/payments/cabupay-callback';
 
     const depositDTO: CreateDepositDTO = {
