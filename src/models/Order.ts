@@ -6,7 +6,7 @@ export interface IOrder extends Document {
   contactPhone?: string;          // Téléphone de contact / WhatsApp
   units: number;
   price: number;
-  currency: "XOF" | "FCFA" | "FC" | "USD";
+  currency: "XOF" | "FCFA" | "CDF" | "USD";
   network: string;                // Réseau de la recharge (ex: MTN, Moov, Celtiis, Vodacom...)
   correspondent?: string;         // Identifiant opérateur Cabupay (ex: MTN_MOMO_BEN)
   offerId: string;
@@ -31,8 +31,8 @@ const OrderSchema = new Schema<IOrder>(
     currency: { 
       type: String, 
       required: true, 
-      enum: ["XOF", "FCFA", "FC", "USD"],
-      default: "XOF"
+      enum: ["XOF", "FCFA", "CDF", "USD"],
+      default: "CDF"
     },
     network: { type: String, required: true },
     correspondent: { type: String, required: false },

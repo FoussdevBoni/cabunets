@@ -40,7 +40,7 @@ export interface CabupayWebhookPayload {
 }
 
 export class CabupayPaymentService {
-  private baseUrl = process.env.CABUPAY_BASE_URL || 'https://cabupay-production.up.railway.app/v1';
+  private baseUrl = process.env.CABUPAY_URL || 'https://cabupay-production.up.railway.app/v1';
   private paymentsUrl = `${this.baseUrl}/payments`;
   private sharedSecret = process.env.INTERNAL_SHARED_SECRET || 'fallback_secret';
 
@@ -52,7 +52,7 @@ export class CabupayPaymentService {
       console.log('[CabupayPaymentService] Prédiction de l\'opérateur pour:', phone);
 
       const response = await axios.post(
-        `${this.baseUrl}/predict-correspondent`,
+        `${this.paymentsUrl}/predict-correspondent`,
         { phoneNumber: phone },
         {
           headers: {

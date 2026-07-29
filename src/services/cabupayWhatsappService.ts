@@ -17,7 +17,7 @@ export class CabupayWhatsappService {
   constructor() {
     this.baseUrl =
       process.env.CABUPAY_WHATSAPP_API_URL ||
-      'https://cabupay-production.up.railway.app';
+      'https://cabupay-production.up.railway.app/v1';
   }
 
   /**
@@ -43,7 +43,7 @@ export class CabupayWhatsappService {
       };
 
       const response = await axios.post(
-        `${this.baseUrl}/v1/whatsapp/send`, // <-- Corrected path to /v1
+        `${this.baseUrl}/whatsapp/send`, // <-- Corrected path to /v1
         payload,
         {
           headers: {
