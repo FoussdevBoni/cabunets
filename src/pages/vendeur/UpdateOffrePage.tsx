@@ -1,5 +1,5 @@
 import { useState } from "react"
-import {  useNavigate, useSearchParams } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { useOffre } from "../../hooks/offres/useOffre"
 import useToken from "../../hooks/auth/useToken"
 import { offresService } from "../../hooks/offres/useOffres"
@@ -27,7 +27,7 @@ export default function UpdateOffrePage() {
                 vendeurId: user?.id
             }
             await offresService.update(id!, upadatedOffre, token)
-            navigate("/offres")
+            navigate(-1)
         } finally {
             setIsLoading(false)
         }

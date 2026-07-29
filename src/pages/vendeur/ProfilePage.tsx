@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../../hooks/auth/useAuth"
 import { useVendeur } from "../../hooks/vendeurs/useVendeur"
-import { fileService } from "../../services/uploadFileService"
 import { 
   User, 
   Mail, 
@@ -23,6 +22,7 @@ import {
 import { CurrentUser, Vendeur } from "../../utils/database"
 import { authService } from "../../services/authService"
 import useToken from "../../hooks/auth/useToken"
+import { uploadService } from "../../services/uploadFileService"
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -101,8 +101,8 @@ export default function ProfilePage() {
       
       // Upload des nouvelles photos si elles existent
       if (newPhotoFiles.length > 0) {
-        const uploadedData = await fileService.uploadMultipleFiles(newPhotoFiles)
-        const uploadedUrls = uploadedData.map(item=>(item.url))
+        const uploadedUrls = await uploadService.uploadMultiple(newPhotoFiles , token)
+        
         finalPhotoUrls = [...finalPhotoUrls, ...uploadedUrls]
       }
 

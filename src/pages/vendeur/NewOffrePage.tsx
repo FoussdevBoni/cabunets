@@ -18,7 +18,7 @@ export default function NewOffrePage() {
         vendeurId: user?.id,
         vendeurName: user?.username
       } , token)
-      navigate("/offres")
+      navigate(-1)
     } finally {
       setIsLoading(false)
     }

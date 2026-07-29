@@ -12,19 +12,19 @@ interface OffreFormProps {
 
 const NETWORKS = ["Airtel", "Vodacom", "Africell", "Orange"] as const
 
-export default function OffreForm({ 
-  initialData, 
-  onSubmit, 
-  isLoading, 
-  isUpdate = false 
+export default function OffreForm({
+  initialData,
+  onSubmit,
+  isLoading,
+  isUpdate = false
 }: OffreFormProps) {
   const navigate = useNavigate()
-  
+
   const [form, setForm] = useState({
     network: initialData?.network || "Airtel",
-    priceFC: initialData?.priceFC || 0,
-    priceUSD: initialData?.priceUSD || 0,
-    units: initialData?.units || 0,
+    priceFC: initialData?.priceFC ? initialData.priceFC.toString() : "",
+    priceUSD: initialData?.priceUSD ? initialData.priceUSD.toString() : "",
+    units: initialData?.units ? initialData.units.toString() : "",
   })
 
   const [error, setError] = useState("")
@@ -33,24 +33,35 @@ export default function OffreForm({
     e.preventDefault()
     setError("")
 
-    if (form.units <= 0) {
+    // Nettoyage des virgules pour la conversion float en JavaScript
+    const cleanFC = form.priceFC.replace(/,/g, '.')
+    const cleanUSD = form.priceUSD.replace(/,/g, '.')
+
+    const unitsNum = parseInt(form.units, 10) || 0
+    const priceFCNum = parseFloat(cleanFC) || 0
+    const priceUSDNum = parseFloat(cleanUSD) || 0
+
+    if (unitsNum <= 0) {
       setError("Le nombre d'unités doit être supérieur à 0")
       return
     }
 
-    if (form.priceFC <= 0) {
+    if (priceFCNum <= 0) {
       setError("Le prix en FC doit être supérieur à 0")
       return
     }
 
-    if (form.priceUSD <= 0) {
+    if (priceUSDNum <= 0) {
       setError("Le prix en USD doit être supérieur à 0")
       return
     }
 
     try {
       await onSubmit({
-        ...form,
+        network: form.network,
+        units: unitsNum,
+        priceFC: priceFCNum,
+        priceUSD: priceUSDNum,
         createdAt: isUpdate ? initialData?.createdAt : new Date(),
         updatedAt: new Date()
       })
@@ -59,69 +70,28 @@ export default function OffreForm({
     }
   }
 
-  // Fonction pour valider et traiter les entrées numériques
-  const handleNumericInput = (
-    value: string, 
-    field: 'units' | 'priceFC' | 'priceUSD',
-    minValue: number = 0
+  const handleNumericChange = (
+    value: string,
+    field: 'units' | 'priceFC' | 'priceUSD'
   ) => {
-    // Autorise uniquement les chiffres et un point décimal (pour USD)
-    let sanitizedValue = value
-    
-    if (field === 'priceUSD') {
-      // Pour USD: autorise les chiffres et un seul point décimal
-      sanitizedValue = value.replace(/[^\d.]/g, '')
-      
-      // Empêche plus d'un point décimal
-      const parts = sanitizedValue.split('.')
-      if (parts.length > 2) {
-        sanitizedValue = parts[0] + '.' + parts.slice(1).join('')
-      }
-      
-      // Limite à 2 décimales après le point
-      if (parts.length === 2 && parts[1].length > 2) {
-        sanitizedValue = parts[0] + '.' + parts[1].substring(0, 2)
+    // Les deux prix acceptent désormais le point et la virgule avec max 2 décimales
+    if (field === 'priceFC' || field === 'priceUSD') {
+      if (/^\d*[.,]?\d{0,2}$/.test(value) || value === "") {
+        setForm(prev => ({ ...prev, [field]: value }))
       }
     } else {
-      // Pour units et priceFC: uniquement les chiffres
-      sanitizedValue = value.replace(/[^\d]/g, '')
+      // Seul le nombre d'unités reste un entier strict
+      const sanitized = value.replace(/[^\d]/g, '')
+      setForm(prev => ({ ...prev, [field]: sanitized }))
     }
-    
-    if (sanitizedValue === '' || sanitizedValue === '.') {
-      setForm(prev => ({ ...prev, [field]: minValue }))
-      return
-    }
-    
-    // Conversion en nombre
-    let num: number
-    if (field === 'priceUSD' && sanitizedValue.includes('.')) {
-      num = parseFloat(sanitizedValue)
-    } else {
-      num = parseInt(sanitizedValue, 10)
-    }
-    
-    if (!isNaN(num)) {
-      setForm(prev => ({ ...prev, [field]: num }))
-    }
-  }
-
-  // Fonction pour formater l'affichage des nombres
-  const formatNumber = (value: number, isDecimal: boolean = false): string => {
-    if (value === 0) return ''
-    
-    if (isDecimal) {
-      return value.toString()
-    }
-    
-    return value.toString()
   }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      {/* Header minimaliste */}
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => navigate(-1)}
+          type="button"
           className="p-2 hover:bg-gray-100 rounded-lg transition"
         >
           <X className="h-5 w-5" />
@@ -129,10 +99,9 @@ export default function OffreForm({
         <h1 className="text-xl font-bold">
           {isUpdate ? "Modifier l'offre" : "Nouvelle offre"}
         </h1>
-        <div className="w-10"></div> {/* Spacer */}
+        <div className="w-10"></div>
       </div>
 
-      {/* Formulaire */}
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto">
         {error && (
           <div className="bg-red-50 text-red-700 p-3 rounded-lg mb-6 text-sm">
@@ -151,19 +120,14 @@ export default function OffreForm({
                 type="button"
                 key={network}
                 onClick={() => setForm(prev => ({ ...prev, network }))}
-                className={`p-4 rounded-xl border-2 transition ${
-                  form.network === network
+                className={`p-4 rounded-xl border-2 transition ${form.network === network
                     ? "border-primary bg-primary/5"
                     : "border-gray-200 hover:border-gray-300"
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
-                  <Smartphone className={`h-5 w-5 ${
-                    form.network === network ? "text-primary" : "text-gray-400"
-                  }`} />
-                  <span className={`font-medium ${
-                    form.network === network ? "text-primary" : "text-gray-700"
-                  }`}>
+                  <Smartphone className={`h-5 w-5 ${form.network === network ? "text-primary" : "text-gray-400"}`} />
+                  <span className={`font-medium ${form.network === network ? "text-primary" : "text-gray-700"}`}>
                     {network}
                   </span>
                 </div>
@@ -182,21 +146,14 @@ export default function OffreForm({
             <input
               type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
-              required
-              value={formatNumber(form.units)}
-              onChange={(e) => handleNumericInput(e.target.value, 'units', 1)}
-              onBlur={(e) => {
-                if (!e.target.value.trim() || parseInt(e.target.value) < 1) {
-                  setForm(prev => ({ ...prev, units: 1 }))
-                }
-              }}
+              value={form.units}
+              onChange={(e) => handleNumericChange(e.target.value, 'units')}
               className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
               placeholder="100"
             />
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Seuls les chiffres sont autorisés
+            Seuls les chiffres entiers sont autorisés
           </p>
         </div>
 
@@ -209,22 +166,15 @@ export default function OffreForm({
             <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              required
-              value={formatNumber(form.priceFC)}
-              onChange={(e) => handleNumericInput(e.target.value, 'priceFC', 1)}
-              onBlur={(e) => {
-                if (!e.target.value.trim() || parseInt(e.target.value) < 1) {
-                  setForm(prev => ({ ...prev, priceFC: 1 }))
-                }
-              }}
+              inputMode="decimal"
+              value={form.priceFC}
+              onChange={(e) => handleNumericChange(e.target.value, 'priceFC')}
               className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
-              placeholder="2000"
+              placeholder="5000,50"
             />
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Seuls les chiffres sont autorisés
+            Vous pouvez utiliser le point (.) ou la virgule (,) pour les décimales
           </p>
         </div>
 
@@ -238,21 +188,14 @@ export default function OffreForm({
             <input
               type="text"
               inputMode="decimal"
-              required
-              value={formatNumber(form.priceUSD, true)}
-              onChange={(e) => handleNumericInput(e.target.value, 'priceUSD', 0.01)}
-              onBlur={(e) => {
-                const value = e.target.value
-                if (!value.trim() || parseFloat(value) < 0.01) {
-                  setForm(prev => ({ ...prev, priceUSD: 0.01 }))
-                }
-              }}
+              value={form.priceUSD}
+              onChange={(e) => handleNumericChange(e.target.value, 'priceUSD')}
               className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
               placeholder="1.00"
             />
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Format: 0.00 (chiffres et point décimal)
+            Vous pouvez utiliser le point (.) ou la virgule (,) pour les décimales
           </p>
         </div>
 

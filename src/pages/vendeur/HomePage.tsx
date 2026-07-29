@@ -9,7 +9,6 @@ import {
   XCircle,
   Plus,
   List
-
 } from "lucide-react"
 import useOrders from "../../hooks/orders/useOrders"
 
@@ -25,7 +24,7 @@ interface NetworkOffers {
 }
 
 export default function OverviewPage() {
-  const { user , loading: userLoading } = useAuth()
+  const { user, loading: userLoading } = useAuth()
   const navigate = useNavigate()
   const [orderStats, setOrderStats] = useState<OrderStats>({
     pending: 0,
@@ -34,69 +33,104 @@ export default function OverviewPage() {
     cancelled: 0
   })
   const [networkOffers, setNetworkOffers] = useState<NetworkOffers>({})
+  const [error, setError] = useState<string | null>(null)
 
-  const { data: offres , loading: offresLoading } = useOffres({ filters: { vendeurId: user?.id } })
-  const {data: orders , loading: ordersLoading} = useOrders({filters: {vendeurId: user?.id}})
+  // Récupération des données - exactement comme dans votre code original
+  const { data: offres, loading: offresLoading } = useOffres({ 
+    filters: { vendeurId: user?.id } 
+  })
+  
+  const { data: orders, loading: ordersLoading } = useOrders({ 
+    filters: { vendeurId: user?.id } 
+  })
 
+  // Calcul des statistiques
   useEffect(() => {
-    if (user?.id) {
-      fetchStats()
+    if (!user?.id) {
+      setError("Utilisateur non authentifié")
+      return
     }
-  }, [user?.id , JSON.stringify(orders)])
 
-  const fetchStats = async () => {
-    if (!user?.id) return
-    
     try {
-      
-      const stats: OrderStats = {
-        pending: orders.filter(o => o.status === "pending").length,
-        confirmed: orders.filter(o => o.status === "confirmed").length,
-        completed: orders.filter(o => o.status === "completed").length,
-        cancelled: orders.filter(o => o.status === "cancelled").length
+      // Vérification que orders existe avant de filtrer
+      if (orders && Array.isArray(orders)) {
+        const stats: OrderStats = {
+          pending: orders.filter(o => o.status === "pending").length,
+          confirmed: orders.filter(o => o.status === "confirmed").length,
+          completed: orders.filter(o => o.status === "completed").length,
+          cancelled: orders.filter(o => o.status === "cancelled").length
+        }
+        setOrderStats(stats)
       }
-      
-      setOrderStats(stats)
 
       // Compter les offres par réseau
-      const networkCount: NetworkOffers = {}
-      offres?.forEach(offre => {
-        networkCount[offre.network] = (networkCount[offre.network] || 0) + 1
-      })
-      setNetworkOffers(networkCount)
+      if (offres && Array.isArray(offres)) {
+        const networkCount: NetworkOffers = {}
+        offres.forEach(offre => {
+          if (offre.network) {
+            networkCount[offre.network] = (networkCount[offre.network] || 0) + 1
+          }
+        })
+        setNetworkOffers(networkCount)
+      }
 
-    } catch (error) {
-      console.error("Erreur:", error)
-    } finally {
+      setError(null)
+    } catch (err) {
+      console.error("Erreur:", err)
+      setError("Une erreur est survenue lors du chargement des données")
     }
-  }
+  }, [user?.id, orders, offres])
 
   const quickLinks = [
     {
       icon: <Plus className="h-5 w-5" />,
       label: "Créer une offre",
-      onClick: () => navigate("/offres/create"),
+      onClick: () => navigate("/vendeur/nouvelle-offre"),
       color: "bg-blue-100 text-blue-600"
     },
     {
       icon: <List className="h-5 w-5" />,
       label: "Mes offres",
-      onClick: () => navigate("/offres?vendeurId=" + user?.id),
+      onClick: () => navigate("/vendeur/offres"),
       color: "bg-green-100 text-green-600"
     },
     {
       icon: <Package className="h-5 w-5" />,
       label: "Commandes",
-      onClick: () => navigate("/orders"),
+      onClick: () => navigate("/vendeur/orders"),
       color: "bg-purple-100 text-purple-600"
     }
-   
   ]
 
+  // Gestion du chargement
   if (userLoading || offresLoading || ordersLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-600">Chargement du tableau de bord...</p>
+      </div>
+    )
+  }
+
+  // Gestion des erreurs
+  if (error || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md w-full">
+          <div className="flex items-center gap-3 mb-4">
+            <XCircle className="h-8 w-8 text-red-600" />
+            <h2 className="text-lg font-bold text-red-800">Erreur</h2>
+          </div>
+          <p className="text-red-700 mb-4">
+            {error || "Utilisateur non authentifié"}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+          >
+            Réessayer
+          </button>
+        </div>
       </div>
     )
   }
@@ -105,7 +139,7 @@ export default function OverviewPage() {
     <div className="min-h-screen bg-gray-50 p-4">
       {/* En-tête */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{user?.username}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{user?.username || "Utilisateur"}</h1>
         <p className="text-gray-600 mt-1">Tableau de bord</p>
       </div>
 
@@ -167,20 +201,29 @@ export default function OverviewPage() {
       <div className="mb-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Offres par réseau</h2>
         <div className="bg-white rounded-xl border p-4">
-          <div className="space-y-3">
-            {Object.entries(networkOffers).map(([network, count]) => (
-              <div key={network} className="flex justify-between items-center py-2">
-                <span className="font-medium text-gray-700">{network}</span>
-                <span className="font-bold text-gray-900">{count} offre{count > 1 ? 's' : ''}</span>
-              </div>
-            ))}
-            
-            {Object.keys(networkOffers).length === 0 && (
-              <div className="text-center py-4 text-gray-500">
-                Aucune offre publiée
-              </div>
-            )}
-          </div>
+          {Object.keys(networkOffers).length > 0 ? (
+            <div className="space-y-3">
+              {Object.entries(networkOffers).map(([network, count]) => (
+                <div key={network} className="flex justify-between items-center py-2 border-b last:border-0">
+                  <span className="font-medium text-gray-700">{network}</span>
+                  <span className="font-bold text-gray-900">
+                    {count} offre{count > 1 ? 's' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p>Aucune offre publiée</p>
+              <button
+                onClick={() => navigate("/vendeur/nouvelle-offre")}
+                className="mt-3 text-primary hover:underline"
+              >
+                Créer ma première offre
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -192,7 +235,7 @@ export default function OverviewPage() {
             <button
               key={index}
               onClick={link.onClick}
-              className="bg-white rounded-xl border p-4 text-left hover:bg-gray-50 transition"
+              className="bg-white rounded-xl border p-4 text-left hover:bg-gray-50 transition hover:shadow-md"
             >
               <div className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${link.color}`}>

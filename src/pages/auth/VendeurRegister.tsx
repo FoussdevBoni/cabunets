@@ -1,23 +1,23 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
-  Upload,
   Check,
   Phone,
   Mail,
-  User,
+  UserIcon,
   Lock,
   DollarSign,
   Clock,
   Eye,
   EyeOff,
-  X,
-  Pencil,
-  Sparkles
+  Sparkles,
+  LogOut,
+  ArrowRight
 } from "lucide-react"
 import { authService } from "../../services/authService"
-import { Vendeur } from "../../utils/database"
-import { fileService, UploadedData } from "../../services/uploadFileService"
+import { User, Vendeur } from "../../utils/database"
+import { useAuth } from "../../hooks/auth/useAuth"
+import useToken from "../../hooks/auth/useToken"
 
 interface NetworkOption {
   name: string
@@ -34,16 +34,15 @@ const NETWORKS: NetworkOption[] = [
 
 export default function VendeurRegister() {
   const navigate = useNavigate()
+  const { user, logout, setUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [error, setError] = useState<string>("")
-
+  const { saveToken } = useToken()
   const [form, setForm] = useState({
     email: '',
     username: '',
     password: '',
-    fullName: "",
     whatsappNumber: "",
     advantage: "",
     networks: {
@@ -52,33 +51,9 @@ export default function VendeurRegister() {
       Africell: false,
       Orange: false,
     },
-    photosFile: [] as File[],
     paymentAmount: 0,
     availability: ""
   })
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files) {
-      const fileArray = Array.from(files)
-      setForm(prev => ({
-        ...prev,
-        photosFile: [...prev.photosFile, ...fileArray]
-      }))
-
-      // Créer des previews
-      const newPreviewUrls = fileArray.map(file => URL.createObjectURL(file))
-      setPreviewUrls(prev => [...prev, ...newPreviewUrls])
-    }
-  }
-
-  const removeImage = (index: number) => {
-    setForm(prev => ({
-      ...prev,
-      photosFile: prev.photosFile.filter((_, i) => i !== index)
-    }))
-    setPreviewUrls(prev => prev.filter((_, i) => i !== index))
-  }
 
   const handleNetworkToggle = (network: string) => {
     setForm(prev => ({
@@ -94,12 +69,6 @@ export default function VendeurRegister() {
     e.preventDefault()
     setError("")
 
-    // Validation
-    if (form.photosFile.length === 0) {
-      setError("Ajouter au moins une photo")
-      return
-    }
-
     if (!form.whatsappNumber || !form.email || !form.password || !form.username) {
       setError("Veuillez remplir tous les champs obligatoires")
       return
@@ -108,39 +77,101 @@ export default function VendeurRegister() {
     setLoading(true)
 
     try {
-      const uploadedData: UploadedData[] = await fileService.uploadMultipleFiles(form.photosFile)
-      const photoUrls = uploadedData.map((item) => (item.url))
       const vendeurProfile: Vendeur = {
         whatsappNumber: form.whatsappNumber,
         advantage: form.advantage,
         email: form.email,
         username: form.username,
         networks: form.networks,
-        photoUrls: photoUrls,
+        photoUrls: [],
         paymentAmount: form.paymentAmount,
         availability: form.availability,
         createdAt: new Date(),
         updatedAt: new Date()
       }
 
-      console.log(vendeurProfile)
-      await authService.register(
+      const registerRes = await authService.register(
         form.email,
         form.password,
         form.username,
-        photoUrls[0],
+        "",
         'vendeur',
         vendeurProfile
       )
-      navigate('/login')
+
+      if (registerRes.token) {
+        saveToken(registerRes.token)
+        const user = await authService.getUserProfile(registerRes.token)
+        setUser(user)
+        navigate('/vendeur/upload-photos')
+
+      }
+
+
+
 
     } catch (error: any) {
       console.error("Erreur lors de l'inscription:", error)
-      setError(error.message || "Une erreur est survenue lors de l'inscription")
+      const errorMessage = authService.getAuthError(error)
+      setError(errorMessage || "Une erreur est survenue lors de l'inscription")
     } finally {
       setLoading(false)
     }
   }
+
+  // Si l'utilisateur est déjà connecté
+  if (user) {
+    const profile = user.profile as Vendeur
+    const hasPhotos = profile?.photoUrls && profile.photoUrls.length > 0
+    const avatar = user.avatar || profile?.photoUrls?.[0]
+
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
+          {/* Avatar */}
+          <div className="w-24 h-24 rounded-full bg-gray-200 mx-auto mb-4 overflow-hidden">
+            {avatar ? (
+              <img src={avatar} alt={user.username} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-primary/10">
+                <UserIcon className="h-12 w-12 text-primary" />
+              </div>
+            )}
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+            {user.username}
+          </h2>
+          <p className="text-gray-500 text-sm mb-6">
+            {user.email}
+          </p>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => navigate(hasPhotos ? 'vendeur/overview' : '/vendeur/upload-photos')}
+              className="w-full bg-primary text-white px-4 py-3 rounded-xl font-medium hover:bg-primary/90 transition flex items-center justify-center gap-2"
+            >
+              <ArrowRight className="h-5 w-5" />
+              {hasPhotos ? "Accéder au tableau de bord" : "Continuer vers l'upload des photos"}
+            </button>
+
+            <button
+              onClick={async () => {
+                await logout()
+                navigate('/login')
+              }}
+              className="w-full border border-gray-300 text-gray-700 px-4 py-3 rounded-xl font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2"
+            >
+              <LogOut className="h-5 w-5" />
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -151,8 +182,12 @@ export default function VendeurRegister() {
             Devenir <span className="text-primary">Vendeur</span>
           </h1>
           <p className="mt-2 text-gray-600">
-            Rejoignez notre plateforme et commencez à vendre dès aujourd'hui
+            Étape 1 : Créez votre compte
           </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="h-2 w-16 bg-primary rounded-full"></div>
+            <div className="h-2 w-16 bg-gray-200 rounded-full"></div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -169,14 +204,13 @@ export default function VendeurRegister() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-
               {/* Nom d'utilisateur */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nom complet *
+                  Nom d'utilisateur *
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="text"
                     required
@@ -270,67 +304,6 @@ export default function VendeurRegister() {
             </div>
           </div>
 
-          {/* Section Photos */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-100">
-              Photos de profil *
-            </h2>
-
-            <div className="space-y-6">
-              {/* Upload area */}
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-primary/50 transition">
-                <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 mb-2">
-                  Glissez-déposez vos photos ou cliquez pour sélectionner
-                </p>
-                <p className="text-sm text-gray-500 mb-4">
-                  PNG, JPG jusqu'à 5MB
-                </p>
-                <input
-                  type="file"
-                  id="photos"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="photos"
-                  className="inline-block bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition cursor-pointer"
-                >
-                  Choisir des photos
-                </label>
-              </div>
-
-              {/* Previews */}
-              {previewUrls.length > 0 && (
-                <div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    {previewUrls.length} photo{previewUrls.length > 1 ? 's' : ''} sélectionnée{previewUrls.length > 1 ? 's' : ''}
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                    {previewUrls.map((url, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition opacity-0 group-hover:opacity-100"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Section Réseaux */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-100">
@@ -349,7 +322,8 @@ export default function VendeurRegister() {
                     }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${form.networks[network.name as keyof typeof form.networks]
+                    <div className={`p-2 rounded-lg ${form.networks[network.name as
+                      keyof typeof form.networks]
                       ? 'bg-white'
                       : 'bg-gray-100'
                       }`}>
@@ -399,7 +373,7 @@ export default function VendeurRegister() {
                   onChange={(e) => setForm(prev => ({ ...prev, availability: e.target.value }))}
                   rows={4}
                   className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition resize-none"
-                  placeholder="Décrivez votre disponibilité (ex: Lundi au vendredi 9h-18h, disponible le weekend sur rendez-vous)"
+                  placeholder="Décrivez votre disponibilité (ex: Lundi au vendredi 9h-18h)"
                 />
               </div>
               <p className="mt-2 text-sm text-gray-500">
@@ -407,6 +381,7 @@ export default function VendeurRegister() {
               </p>
             </div>
           </div>
+
           {/* Bouton de soumission */}
           <div className="flex justify-center pt-6">
             <button
@@ -420,7 +395,7 @@ export default function VendeurRegister() {
                   Inscription en cours...
                 </div>
               ) : (
-                "Créer mon compte vendeur"
+                "Continuer vers l'upload des photos"
               )}
             </button>
           </div>

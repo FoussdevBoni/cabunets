@@ -10,7 +10,8 @@ interface AuthContextType {
   error: Error | null;
   refreshUser: () => Promise<void>;
   logout: () => void;
-  updateUser: (user: User)=>void
+  updateUser: (user: User) => Promise<void>;
+  setUser: (user: User | null) => void; // Ajout de setUser
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -19,7 +20,8 @@ export const AuthContext = createContext<AuthContextType>({
   error: null,
   refreshUser: async () => {},
   logout: () => {},
-  updateUser: ()=>{}
+  updateUser: async () => {},
+  setUser: () => {} // Ajout de setUser
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -28,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-   const navigate = useNavigate()
+  const navigate = useNavigate()
   const {token , saveToken , deleteToken} = useToken();
 
   
@@ -37,8 +39,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const fetchUser = async () => {
       try {
         const currentUser = await authService.getUserProfile(token);
-
-      
         setUser(currentUser);
       } catch (err) {
         setError(err as Error);
@@ -49,9 +49,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     fetchUser();
   }, [token]);
-
-
- 
 
   // Permet de forcer une mise à jour manuelle de l'user (ex: après login)
   const refreshUser = async () => {
@@ -74,17 +71,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     navigate("/login")
   };
 
-  const updateUser = async (user: User)=>{
+  const updateUser = async (user: User) => {
     const {profile , avatar , username } = user
     try {
-       await authService.updateUser(token , user.id! , { avatar , username} , profile)
+      await authService.updateUser(token , user.id! , { avatar , username} , profile)
     } catch (error) {
       throw error
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, error ,  refreshUser, logout , updateUser }}>
+    <AuthContext.Provider value={{ user, loading, error, refreshUser, logout, updateUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

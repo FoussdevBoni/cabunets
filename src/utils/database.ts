@@ -80,17 +80,20 @@ export interface Offre {
 
 export interface Order {
   id?: string
-  email: string;
   phoneNumber: string;
+  paymentPhone?: string
+  contactPhone?: string
   units: number;
   price: number;
-  currency: "FC" | "USD";
+  currency: "CDF" | "USD";
   network: string;
   offerId: string;
   vendeurId: string;
   vendeurName: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled",
+  vendeurPhone: string;
+  status: "PENDING" | "PAID" | "COMPLETED" | "FAILED" | "CANCELLED";
   createdAt?: Date;
+  correspondent: string
   updatedAt?: Date;
 }
 
