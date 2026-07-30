@@ -87,7 +87,35 @@ export const ordersService = {
             console.error('[ordersService] Erreur getPaymentStatus:', error?.response?.data || error.message)
             throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
         }
-    }
+    },
+
+    syncOrderStatus: async (orderId: string): Promise<any> => {
+        try {
+            const response = await axios.get(
+                `${API_URL}/orders/sync-status/${orderId}`
+            )
+            return response.data
+        } catch (error: any) {
+            console.error('[ordersService] Erreur getPaymentStatus:', error?.response?.data || error.message)
+            throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
+        }
+    },
+    traitOrder: async (token: string, orderId: string): Promise<any> => {
+        try {
+            const response = await axios.get(
+                `${API_URL}/orders/trait-order/${orderId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            )
+            return response.data
+        } catch (error: any) {
+            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
+            throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
+        }
+    },
 }
 
 interface Props {

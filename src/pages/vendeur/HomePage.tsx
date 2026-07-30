@@ -8,7 +8,9 @@ import {
   Clock,
   XCircle,
   Plus,
-  List
+  List,
+  TrendingUp,
+  AlertCircle
 } from "lucide-react"
 import useOrders from "../../hooks/orders/useOrders"
 
@@ -17,6 +19,7 @@ interface OrderStats {
   confirmed: number
   completed: number
   cancelled: number
+  totalRevenue: number
 }
 
 interface NetworkOffers {
@@ -30,12 +33,13 @@ export default function OverviewPage() {
     pending: 0,
     confirmed: 0,
     completed: 0,
-    cancelled: 0
+    cancelled: 0,
+    totalRevenue: 0
   })
   const [networkOffers, setNetworkOffers] = useState<NetworkOffers>({})
   const [error, setError] = useState<string | null>(null)
 
-  // Récupération des données - exactement comme dans votre code original
+  // Récupération des données selon le vendeur connecté
   const { data: offres, loading: offresLoading } = useOffres({ 
     filters: { vendeurId: user?.id } 
   })
@@ -52,13 +56,22 @@ export default function OverviewPage() {
     }
 
     try {
-      // Vérification que orders existe avant de filtrer
       if (orders && Array.isArray(orders)) {
+        // Filtrage et calculs insensibles à la casse
+        const completed = orders.filter(o => o.status?.toUpperCase() === "COMPLETED")
+        
         const stats: OrderStats = {
-          pending: orders.filter(o => o.status === "pending").length,
-          confirmed: orders.filter(o => o.status === "confirmed").length,
-          completed: orders.filter(o => o.status === "completed").length,
-          cancelled: orders.filter(o => o.status === "cancelled").length
+          pending: orders.filter(o => {
+            const st = o.status?.toUpperCase()
+            return st !== "COMPLETED" && st !== "FAILED" && st !== "CANCELLED" && st !== "CONFIRMED"
+          }).length,
+          confirmed: orders.filter(o => o.status?.toUpperCase() === "CONFIRMED").length,
+          completed: completed.length,
+          cancelled: orders.filter(o => {
+            const st = o.status?.toUpperCase()
+            return st === "CANCELLED" || st === "FAILED"
+          }).length,
+          totalRevenue: completed.reduce((sum, o) => sum + (Number(o.price) || 0), 0)
         }
         setOrderStats(stats)
       }
@@ -102,7 +115,7 @@ export default function OverviewPage() {
     }
   ]
 
-  // Gestion du chargement
+  // Chargement
   if (userLoading || offresLoading || ordersLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
@@ -112,7 +125,7 @@ export default function OverviewPage() {
     )
   }
 
-  // Gestion des erreurs
+  // Erreur
   if (error || !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
@@ -138,15 +151,26 @@ export default function OverviewPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       {/* En-tête */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{user?.username || "Utilisateur"}</h1>
-        <p className="text-gray-600 mt-1">Tableau de bord</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{user?.username  || "Vendeur"}</h1>
+          <p className="text-gray-600 mt-1">Espace Vendeur</p>
+        </div>
+        <div className="bg-white px-4 py-2 rounded-xl border flex items-center gap-3 shadow-sm">
+          <TrendingUp className="h-5 w-5 text-green-600" />
+          <div>
+            <div className="text-xs text-gray-500">Gains générés</div>
+            <div className="text-sm font-bold text-gray-900">
+              {orderStats.totalRevenue.toLocaleString("fr-FR")} FCFA
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Stats commandes */}
       <div className="mb-8">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Statut des commandes</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-yellow-100 flex items-center justify-center">
@@ -186,10 +210,10 @@ export default function OverviewPage() {
           <div className="bg-white rounded-xl border p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center">
-                <XCircle className="h-5 w-5 text-red-600" />
+                <AlertCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-600">Annulées</div>
+                <div className="text-sm text-gray-600">Échouées / Annulées</div>
                 <div className="text-xl font-bold text-gray-900">{orderStats.cancelled}</div>
               </div>
             </div>
@@ -218,7 +242,7 @@ export default function OverviewPage() {
               <p>Aucune offre publiée</p>
               <button
                 onClick={() => navigate("/vendeur/nouvelle-offre")}
-                className="mt-3 text-primary hover:underline"
+                className="mt-3 text-primary hover:underline text-sm font-medium"
               >
                 Créer ma première offre
               </button>
@@ -230,7 +254,7 @@ export default function OverviewPage() {
       {/* Accès rapides */}
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-4">Accès rapide</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {quickLinks.map((link, index) => (
             <button
               key={index}

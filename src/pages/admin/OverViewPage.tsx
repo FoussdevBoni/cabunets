@@ -1,6 +1,6 @@
 import useOrders from '../../hooks/orders/useOrders'
 import useOffres from '../../hooks/offres/useOffres'
-import { Package, Users, DollarSign, TrendingUp } from "lucide-react"
+import { Package, Users, DollarSign, TrendingUp, XCircle, Clock, CheckCircle } from "lucide-react"
 import useVendeurs from '../../hooks/vendeurs/useVendeurs'
 
 export default function AdminOverviewPage() {
@@ -16,19 +16,23 @@ export default function AdminOverviewPage() {
     )
   }
 
-  // Calculs simples
+  // Calculs principaux
   const totalOrders = orders?.length || 0
   const totalOffres = offres?.length || 0
   const totalVendeurs = vendeurs?.length || 0
   
-  // Revenu total (commandes complétées)
+  // Revenu total (commandes complétées uniquement, insensible à la casse)
   const totalRevenue = orders
-    ?.filter(order => order.status === "completed")
-    .reduce((sum, order) => sum + order.price, 0) || 0
+    ?.filter(order => order.status?.toUpperCase() === "COMPLETED")
+    .reduce((sum, order) => sum + (Number(order.price) || 0), 0) || 0
 
-  // Commandes par statut
-  const pendingOrders = orders?.filter(o => o.status === "pending").length || 0
-  const completedOrders = orders?.filter(o => o.status === "completed").length || 0
+  // Décompte par statut
+  const completedOrders = orders?.filter(o => o.status?.toUpperCase() === "COMPLETED").length || 0
+  const failedOrders = orders?.filter(o => o.status?.toUpperCase() === "FAILED").length || 0
+  const pendingOrders = orders?.filter(o => {
+    const status = o.status?.toUpperCase()
+    return status !== "COMPLETED" && status !== "FAILED"
+  }).length || 0
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -83,7 +87,9 @@ export default function AdminOverviewPage() {
             </div>
             <div>
               <div className="text-sm text-gray-600">Revenu total</div>
-              <div className="text-xl font-bold text-gray-900">${totalRevenue}</div>
+              <div className="text-xl font-bold text-gray-900">
+                {totalRevenue.toLocaleString("fr-FR")} FCFA
+              </div>
             </div>
           </div>
         </div>
@@ -92,14 +98,29 @@ export default function AdminOverviewPage() {
       {/* Stats commandes */}
       <div className="bg-white rounded-xl border p-5 mb-6">
         <h2 className="text-lg font-bold text-gray-900 mb-4">Statut des commandes</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="border rounded-lg p-4">
-            <div className="text-sm text-gray-600 mb-1">En attente</div>
-            <div className="text-2xl font-bold text-yellow-600">{pendingOrders}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border rounded-lg p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600 mb-1">En attente</div>
+              <div className="text-2xl font-bold text-yellow-600">{pendingOrders}</div>
+            </div>
+            <Clock className="h-6 w-6 text-yellow-500 opacity-80" />
           </div>
-          <div className="border rounded-lg p-4">
-            <div className="text-sm text-gray-600 mb-1">Traitées</div>
-            <div className="text-2xl font-bold text-green-600">{completedOrders}</div>
+
+          <div className="border rounded-lg p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Traitées</div>
+              <div className="text-2xl font-bold text-green-600">{completedOrders}</div>
+            </div>
+            <CheckCircle className="h-6 w-6 text-green-500 opacity-80" />
+          </div>
+
+          <div className="border rounded-lg p-4 flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Échouées</div>
+              <div className="text-2xl font-bold text-red-600">{failedOrders}</div>
+            </div>
+            <XCircle className="h-6 w-6 text-red-500 opacity-80" />
           </div>
         </div>
       </div>
@@ -107,7 +128,7 @@ export default function AdminOverviewPage() {
       {/* Accès rapides */}
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-4">Accès rapide</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a href="/admin/orders" className="block">
             <div className="bg-white rounded-xl border p-4 hover:bg-gray-50 transition">
               <div className="text-sm font-medium text-gray-900">Toutes les commandes</div>
