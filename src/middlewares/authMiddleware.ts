@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 
 interface JwtPayload {
   id: string;
-  role: 'vendeur' | 'superviseur' | 'admin';
+  role: 'vendeur' | 'admin';
   iat: number;
   exp: number;
 }
@@ -13,7 +13,7 @@ declare module 'express-serve-static-core' {
   interface Request {
     user?: {
       userId: string;
-    role: 'vendeur' | 'superviseur' | 'admin';
+    role: 'vendeur' |  'admin';
 
     }
   }

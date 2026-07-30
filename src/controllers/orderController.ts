@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Order } from '../models/Order'; // Ajuste le chemin selon ton projet
 import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService'; // Ajuste le chemin
+import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
 
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -174,3 +175,142 @@ export const deleteOrder = async (req: Request, res: Response): Promise<Response
     return res.status(500).json({ error: 'Erreur lors de la suppression de la commande' });
   }
 };
+
+
+
+/**
+ * Vérifie le statut d'une transaction auprès de Cabupay et met à jour la commande en BDD
+ * Endpoint: GET /api/orders/:id/sync-status (ou /api/orders/:orderId/sync-status)
+ */
+export const syncOrderStatus = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id, orderId } = req.params;
+    const targetId = id || orderId;
+
+    // 1. Récupération de la commande Mongoose
+    const order = await Order.findById(targetId);
+    if (!order) {
+      return res.status(404).json({ error: 'Commande introuvable' });
+    }
+
+    // Si la commande est déjà dans un état final, inutile d'appeler l'API externe
+    if (order.status === 'COMPLETED' || order.status === 'FAILED') {
+      return res.json({ status: order.status, order });
+    }
+
+    // Vérification de la présence de depositId pour interroger Cabupay
+    if (!order.depositId) {
+      return res.status(400).json({
+        error: "Aucun depositId (Cabupay) associé à cette commande.",
+        order,
+      });
+    }
+
+    // 2. Appel du service Cabupay avec le depositId enregistré lors du createOrder
+    const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
+
+    // Récupération du statut renvoyé par Cabupay
+    const externalStatus = paymentResponse?.data?.status?.toUpperCase() || paymentResponse?.status?.toUpperCase();
+
+
+    console.log(paymentResponse)
+    // 3. Traitement strict (COMPLETED ou FAILED)
+    if (externalStatus === 'COMPLETED' || externalStatus === 'FAILED') {
+      order.status = externalStatus;
+      await order.save();
+    }
+
+    // 4. Retour de la commande mise à jour
+    return res.json({
+      status: order.status,
+      order,
+    });
+  } catch (err: any) {
+    console.error('❌ Erreur syncOrderStatus:', err.message || err);
+    return res.status(500).json({
+      error: 'Erreur lors de la synchronisation du statut avec Cabupay',
+      details: err.message || err,
+    });
+  }
+};
+
+
+/**
+ * Vérifie le statut d'une transaction auprès de Cabupay,
+ * met à jour la commande en BDD et envoie un message au vendeur s'il s'agit d'une nouvelle validation.
+ * Endpoint: GET /api/orders/traite-order/:orderId 
+ */
+export const traitOrder = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id, orderId } = req.params;
+    const targetId = id || orderId;
+
+    // 1. Récupération de la commande Mongoose
+    const order = await Order.findById(targetId);
+    if (!order) {
+      return res.status(404).json({ error: 'Commande introuvable' });
+    }
+
+    // Si la commande est déjà dans un état final en BDD, on renvoie immédiatement le résultat
+    if (order.status === 'COMPLETED' || order.status === 'FAILED') {
+      return res.json({ status: order.status, order });
+    }
+
+    // Vérification de la présence du depositId Cabupay
+    if (!order.depositId) {
+      return res.status(400).json({
+        error: "Aucun depositId (Cabupay) associé à cette commande.",
+        order,
+      });
+    }
+
+    // 2. Appel du service Cabupay avec le depositId
+    const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
+
+    // Extraction sécurisée du statut renvoyé par Cabupay
+    const rawStatus = paymentResponse?.data?.status || paymentResponse?.status;
+    const externalStatus = rawStatus ? String(rawStatus).toUpperCase() : null;
+
+    const previousStatus = order.status;
+
+    // 3. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
+    if (externalStatus === 'COMPLETED' || externalStatus === 'FAILED') {
+      order.status = externalStatus;
+      await order.save();
+    }
+
+  // 4. Notification WhatsApp
+// Le guard initial garantit déjà que order.status était 'PENDING' avant cette ligne.
+if (externalStatus === 'COMPLETED') {
+  cabupayWhatsappService
+    .notifyNewOrder({
+      vendeurName: order.vendeurName || 'Vendeur',
+      vendeurPhone: order.vendeurPhone,
+      orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
+      network: order.network,
+      units: order.units,
+      price: order.price,
+      currency: order.currency || 'FC',
+      customerPhone: order.phoneNumber,
+    })
+    .catch((err) => {
+      console.error(`[WhatsApp Error] Échec de notification pour commande #${order._id}:`, err.message || err);
+    });
+}
+
+    // 5. Retour de la commande mise à jour
+    return res.json({
+      status: order.status,
+      order,
+    });
+  } catch (err: any) {
+    console.error('❌ Erreur traitOrder:', err.message || err);
+    return res.status(500).json({
+      error: 'Erreur lors de la synchronisation du statut avec Cabupay',
+      details: err.message || err,
+    });
+  }
+};
+
+
+

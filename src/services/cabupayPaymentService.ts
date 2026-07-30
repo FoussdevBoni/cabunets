@@ -132,6 +132,7 @@ export class CabupayPaymentService {
         timeout: 5000,
       });
 
+      console.log(response.data)
       return response.data;
     } catch (error: any) {
       if (error.response) {
@@ -142,8 +143,29 @@ export class CabupayPaymentService {
     }
   }
 
+    /**
+   * 4. Récupérer/Vérifier l'état d'une transaction (par depositId ou clientReference)
+   */
+  public async getDeposit(depositId: string): Promise<any> {
+    try {
+      console.log(`[CabupayPaymentService] Vérification du statut pour: ${depositId}`);
+      
+      const response = await axios.get(`${this.paymentsUrl}/deposite/${depositId}`, {
+        timeout: 5000,
+      });
+
+      console.log(response.data)
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        console.error('[CabupayPaymentService] Erreur lors de la récupération:', error.response.data);
+        throw new Error(error.response.data?.error || 'Transaction introuvable');
+      }
+      throw new Error(`[CabupayPaymentService] Échec de la vérification du statut: ${error.message}`);
+    }
+  }
   /**
-   * 4. Vérifier et parser le Webhook entrant envoyé par Cabupay vers ton app cliente
+   * 5  Vérifier et parser le Webhook entrant envoyé par Cabupay vers ton app cliente
    */
   public handleWebhookNotification(
     payload: CabupayWebhookPayload,

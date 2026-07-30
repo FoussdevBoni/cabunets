@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { 
   handleCabupayWebhook, 
   getPaymentStatus, 
-  predictCorrespondent 
+  predictCorrespondent, 
+  getDeposit
 } from '../controllers/cabupayPaymentController';
 
 const router = Router();
@@ -15,5 +16,7 @@ router.post('/cabupay-callback', handleCabupayWebhook);
 
 // Vérification du statut d'un paiement
 router.get('/payment-status/:referenceOrId', getPaymentStatus);
+router.get('/deposit/:depositId', getDeposit);
+
 
 export default router;

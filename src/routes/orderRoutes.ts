@@ -1,6 +1,6 @@
 import express from 'express';
+import { createOrder, deleteOrder, getOrderById, getOrders, syncOrderStatus, traitOrder, updateOrder } from '../controllers/orderController';
 import { authMiddleware } from '../middlewares/authMiddleware';
-import { createOrder, deleteOrder, getOrderById, getOrders, updateOrder } from '../controllers/orderController';
 
 
 
@@ -11,6 +11,8 @@ router.post('/',  createOrder);
 
 router.get('/',   getOrders);
 router.get('/:id', getOrderById);
+router.get('/sync-status/:orderId', syncOrderStatus);
+router.get('/trait-order/:orderId', authMiddleware, traitOrder);
 
 router.put('/:id', updateOrder);
 router.delete('/:id', deleteOrder);

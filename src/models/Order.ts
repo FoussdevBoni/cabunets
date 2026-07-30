@@ -16,7 +16,7 @@ export interface IOrder extends Document {
   depositId?: string;             // Reference unique du paiement Cabupay
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
-  status: "PENDING" | "PAID" | "COMPLETED" | "FAILED" | "CANCELLED";
+  status: "PENDING" | "COMPLETED" | "FAILED";
   createdAt: Date;
   updatedAt: Date;
 }
