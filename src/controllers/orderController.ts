@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { Order } from '../models/Order'; // Ajuste le chemin selon ton projet
 import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService'; // Ajuste le chemin
 import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
+import { getPawapayError } from '../utils/getPawapayErrors';
+
+
 
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -91,11 +94,12 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
 
       order.status = 'FAILED';
       order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
+      const messageError = getPawapayError(failureCode)
       await order.save();
 
       return res.status(400).json({
         success: false,
-        message: `Échec de l'initialisation du paiement: ${failureMsg}`,
+        error: messageError || `Échec de l'initialisation du paiement: ${failureMsg}`,
         order,
         payment: {
           success: false,
