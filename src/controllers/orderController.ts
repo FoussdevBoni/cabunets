@@ -224,6 +224,7 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
     return res.json({
       status: order.status,
       order,
+      payment: paymentResponse
     });
   } catch (err: any) {
     console.error('❌ Erreur syncOrderStatus:', err.message || err);
@@ -271,7 +272,6 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
     const rawStatus = paymentResponse?.data?.status || paymentResponse?.status;
     const externalStatus = rawStatus ? String(rawStatus).toUpperCase() : null;
 
-    const previousStatus = order.status;
 
     // 3. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
     if (externalStatus === 'COMPLETED' || externalStatus === 'FAILED') {
@@ -279,29 +279,30 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       await order.save();
     }
 
-  // 4. Notification WhatsApp
-// Le guard initial garantit déjà que order.status était 'PENDING' avant cette ligne.
-if (externalStatus === 'COMPLETED') {
-  cabupayWhatsappService
-    .notifyNewOrder({
-      vendeurName: order.vendeurName || 'Vendeur',
-      vendeurPhone: order.vendeurPhone,
-      orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-      network: order.network,
-      units: order.units,
-      price: order.price,
-      currency: order.currency || 'FC',
-      customerPhone: order.phoneNumber,
-    })
-    .catch((err) => {
-      console.error(`[WhatsApp Error] Échec de notification pour commande #${order._id}:`, err.message || err);
-    });
-}
+    // 4. Notification WhatsApp
+    // Le guard initial garantit déjà que order.status était 'PENDING' avant cette ligne.
+    if (externalStatus === 'COMPLETED') {
+      cabupayWhatsappService
+        .notifyNewOrder({
+          vendeurName: order.vendeurName || 'Vendeur',
+          vendeurPhone: order.vendeurPhone,
+          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
+          network: order.network,
+          units: order.units,
+          price: order.price,
+          currency: order.currency || 'FC',
+          customerPhone: order.phoneNumber,
+        })
+        .catch((err) => {
+          console.error(`[WhatsApp Error] Échec de notification pour commande #${order._id}:`, err.message || err);
+        });
+    }
 
     // 5. Retour de la commande mise à jour
     return res.json({
       status: order.status,
       order,
+      payment: paymentResponse
     });
   } catch (err: any) {
     console.error('❌ Erreur traitOrder:', err.message || err);

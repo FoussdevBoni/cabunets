@@ -139,8 +139,8 @@ export const getDeposit = async (req: Request, res: Response): Promise<Response>
       return res.status(400).json({ success: false, error: 'Le paramètre depositId est requis' });
     }
 
-    const transactionData = await cabupayPaymentService.getDeposit(depositId);
-    return res.status(200).json({ success: true, data: transactionData });
+    const deposit = await cabupayPaymentService.getDeposit(depositId);
+    return res.status(200).json({ success: true, data: deposit });
   } catch (error: any) {
     console.error('[Get Payment Status Error]:', error.message);
     return res.status(500).json({ success: false, error: error.message });
