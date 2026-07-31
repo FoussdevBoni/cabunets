@@ -17,6 +17,8 @@ export interface IOrder extends Document {
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
   status: "PENDING" | "COMPLETED" | "FAILED";
+  depositExistence?: 'FOUND' | 'NOT_FOUND';
+  depositPaymentStatus?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,8 +49,13 @@ const OrderSchema = new Schema<IOrder>(
       type: String, 
       required: true,
       default: "PENDING",
-      enum: ["PENDING", "PAID", "COMPLETED", "FAILED", "CANCELLED"]
-    }
+      enum: ["PENDING",  "COMPLETED", "FAILED"]
+    },
+    depositExistence: { 
+    type: String, 
+    enum: ['FOUND', 'NOT_FOUND'],
+  },
+  depositPaymentStatus: { type: String },
   },
   { timestamps: true }
 );

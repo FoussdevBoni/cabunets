@@ -193,12 +193,16 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       return res.status(404).json({ error: 'Commande introuvable' });
     }
 
-    // Si la commande est déjà dans un état final, inutile d'appeler l'API externe
+    // Si la commande est déjà terminée localement, on ne re-synchronise pas
     if (order.status === 'COMPLETED' || order.status === 'FAILED') {
-      return res.json({ status: order.status, order });
+      return res.json({ 
+        status: order.status, 
+        depositExistence: order.depositExistence,
+        order 
+      });
     }
 
-    // Vérification de la présence de depositId pour interroger Cabupay
+    // Vérification de la présence du depositId
     if (!order.depositId) {
       return res.status(400).json({
         error: "Aucun depositId (Cabupay) associé à cette commande.",
@@ -206,26 +210,49 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       });
     }
 
-    // 2. Appel du service Cabupay avec le depositId enregistré lors du createOrder
+    // 2. Appel de l'API externe
     const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
 
-    // Récupération du statut renvoyé par Cabupay
-    const externalStatus = paymentResponse?.data?.status?.toUpperCase() || paymentResponse?.status?.toUpperCase();
-
-
-    console.log(paymentResponse)
-    // 3. Traitement strict (COMPLETED ou FAILED)
-    if (externalStatus === 'COMPLETED' || externalStatus === 'FAILED') {
-      order.status = externalStatus;
+    // 3. Cas NOT_FOUND : Le dépôt n'existe pas chez Cabupay
+    if (paymentResponse?.status === 'NOT_FOUND') {
+      order.depositExistence = 'NOT_FOUND';
       await order.save();
+
+      return res.json({
+        status: order.status, // Reste PENDING
+        depositExistence: order.depositExistence, // NOT_FOUND
+        order,
+        payment: paymentResponse
+      });
     }
 
-    // 4. Retour de la commande mise à jour
+    // 4. Cas FOUND : Le dépôt existe chez Cabupay
+    order.depositExistence = 'FOUND';
+    
+    const depositData = paymentResponse?.data;
+    const paymentStatus = depositData?.status?.toUpperCase();
+
+    // Mises à jour des statuts finaux uniquement
+    if (paymentStatus === 'COMPLETED') {
+      order.status = 'COMPLETED';
+    } else if (paymentStatus === 'FAILED') {
+      order.status = 'FAILED';
+      if (depositData?.failureReason?.failureMessage) {
+        order.failureReason = depositData.failureReason.failureMessage;
+      }
+    }
+    // Pour ACCEPTED, PROCESSING, IN_RECONCILIATION -> order.status reste PENDING
+
+    await order.save();
+
     return res.json({
       status: order.status,
+      depositExistence: order.depositExistence,
+      depositPaymentStatus: paymentStatus,
       order,
       payment: paymentResponse
     });
+
   } catch (err: any) {
     console.error('❌ Erreur syncOrderStatus:', err.message || err);
     return res.status(500).json({
@@ -254,7 +281,11 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
 
     // Si la commande est déjà dans un état final en BDD, on renvoie immédiatement le résultat
     if (order.status === 'COMPLETED' || order.status === 'FAILED') {
-      return res.json({ status: order.status, order });
+      return res.json({ 
+        status: order.status, 
+        depositExistence: order.depositExistence,
+        order 
+      });
     }
 
     // Vérification de la présence du depositId Cabupay
@@ -268,20 +299,39 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
     // 2. Appel du service Cabupay avec le depositId
     const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
 
-    // Extraction sécurisée du statut renvoyé par Cabupay
-    const rawStatus = paymentResponse?.data?.status || paymentResponse?.status;
-    const externalStatus = rawStatus ? String(rawStatus).toUpperCase() : null;
-
-
-    // 3. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
-    if (externalStatus === 'COMPLETED' || externalStatus === 'FAILED') {
-      order.status = externalStatus;
+    // 3. Traitement du cas NOT_FOUND (Le dépôt n'existe pas chez Cabupay)
+    if (paymentResponse?.status === 'NOT_FOUND') {
+      order.depositExistence = 'NOT_FOUND';
       await order.save();
+
+      return res.json({
+        status: order.status, // Reste PENDING
+        depositExistence: order.depositExistence, // NOT_FOUND
+        order,
+        payment: paymentResponse
+      });
     }
 
-    // 4. Notification WhatsApp
-    // Le guard initial garantit déjà que order.status était 'PENDING' avant cette ligne.
-    if (externalStatus === 'COMPLETED') {
+    // 4. Traitement du cas FOUND (Le dépôt existe chez Cabupay)
+    order.depositExistence = 'FOUND';
+
+    const depositData = paymentResponse?.data;
+    const paymentStatus = depositData?.status?.toUpperCase();
+
+    // 5. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
+    if (paymentStatus === 'COMPLETED') {
+      order.status = 'COMPLETED';
+    } else if (paymentStatus === 'FAILED') {
+      order.status = 'FAILED';
+      if (depositData?.failureReason?.failureMessage) {
+        order.failureReason = depositData.failureReason.failureMessage;
+      }
+    }
+
+    await order.save();
+
+    // 6. Notification WhatsApp (uniquement si le paiement vient d'être validé en COMPLETED)
+    if (paymentStatus === 'COMPLETED') {
       cabupayWhatsappService
         .notifyNewOrder({
           vendeurName: order.vendeurName || 'Vendeur',
@@ -298,12 +348,15 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
         });
     }
 
-    // 5. Retour de la commande mise à jour
+    // 7. Retour de la commande mise à jour
     return res.json({
       status: order.status,
+      depositExistence: order.depositExistence,
+      depositPaymentStatus: paymentStatus,
       order,
       payment: paymentResponse
     });
+
   } catch (err: any) {
     console.error('❌ Erreur traitOrder:', err.message || err);
     return res.status(500).json({
