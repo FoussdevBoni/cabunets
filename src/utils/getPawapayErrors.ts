@@ -70,6 +70,11 @@ export const pawaPayErrors = [
     error: "PAYER_NOT_FOUND",
     traduction: "Le numéro de téléphone n'a pas de compte mobile money chez ce provider."
   },
+
+  {
+    error: "FORMAT_PAYEUR_INVALIDE",
+    traduction: "Le numéro de téléphone est incorrect: Veillez respecter ce formet '+243 815 625 169'"
+  },
   {
     error: "PAYMENT_NOT_APPROVED",
     traduction: "Le client n'a pas approuvé le paiement."
