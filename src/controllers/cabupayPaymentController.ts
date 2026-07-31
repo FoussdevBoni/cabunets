@@ -87,11 +87,14 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     } else if (status === 'FAILED') {
       order.status = 'FAILED';
 
+      console.log("[handleCabupayWebhook]: failureReason", failureReason )
+
       if (failureReason) {
         if (typeof failureReason === 'object' && failureReason !== null && 'failureMessage' in failureReason) {
           const code = (failureReason as any).failureCode || 'FAILED';
           const msg = (failureReason as any).failureMessage;
           order.failureReason = `${code}: ${msg}`;
+          order.failureCode=code
         } else {
           order.failureReason = typeof failureReason === 'string'
             ? failureReason

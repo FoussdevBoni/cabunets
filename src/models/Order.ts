@@ -16,6 +16,7 @@ export interface IOrder extends Document {
   depositId?: string;             // Reference unique du paiement Cabupay
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
+  failureCode?: string;
   status: "PENDING" | "COMPLETED" | "FAILED";
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   depositPaymentStatus?: string;
@@ -30,9 +31,9 @@ const OrderSchema = new Schema<IOrder>(
     contactPhone: { type: String, required: false },
     units: { type: Number, required: true, min: 1 },
     price: { type: Number, required: true },
-    currency: { 
-      type: String, 
-      required: true, 
+    currency: {
+      type: String,
+      required: true,
       enum: ["XOF", "FCFA", "CDF", "USD"],
       default: "CDF"
     },
@@ -45,17 +46,19 @@ const OrderSchema = new Schema<IOrder>(
     depositId: { type: String, required: false, index: true },
     providerTransactionId: { type: String, required: false },
     failureReason: { type: String, required: false },
-    status: { 
-      type: String, 
+    failureCode: { type: String, required: false },
+
+    status: {
+      type: String,
       required: true,
       default: "PENDING",
-      enum: ["PENDING",  "COMPLETED", "FAILED"]
+      enum: ["PENDING", "COMPLETED", "FAILED"]
     },
-    depositExistence: { 
-    type: String, 
-    enum: ['FOUND', 'NOT_FOUND'],
-  },
-  depositPaymentStatus: { type: String },
+    depositExistence: {
+      type: String,
+      enum: ['FOUND', 'NOT_FOUND'],
+    },
+    depositPaymentStatus: { type: String },
   },
   { timestamps: true }
 );

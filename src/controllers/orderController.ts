@@ -93,6 +93,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       const failureCode = failureObj?.failureCode;
 
       order.status = 'FAILED';
+      order.failureCode= failureCode
       order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
       const messageError = getPawapayError(failureCode)
       await order.save();
@@ -245,10 +246,14 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
     }
 
     // 2. Appel de l'API externe
-    const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
+    const response = await cabupayPaymentService.getDeposit(order.depositId);
+
+    const deposit = response.data
+
+
 
     // 3. Cas NOT_FOUND : Le dépôt n'existe pas chez Cabupay
-    if (paymentResponse?.status === 'NOT_FOUND') {
+    if (deposit?.status === 'NOT_FOUND') {
       order.depositExistence = 'NOT_FOUND';
       await order.save();
 
@@ -256,14 +261,14 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
         status: order.status, // Reste PENDING
         depositExistence: order.depositExistence, // NOT_FOUND
         order,
-        payment: paymentResponse
+        payment: deposit
       });
     }
 
     // 4. Cas FOUND : Le dépôt existe chez Cabupay
     order.depositExistence = 'FOUND';
     
-    const depositData = paymentResponse?.data;
+    const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
 
     // Mises à jour des statuts finaux uniquement
@@ -273,6 +278,8 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       order.status = 'FAILED';
       if (depositData?.failureReason?.failureMessage) {
         order.failureReason = depositData.failureReason.failureMessage;
+        console.log(depositData.failureCode)
+        order.failureCode = depositData.failureCode
       }
     }
     // Pour ACCEPTED, PROCESSING, IN_RECONCILIATION -> order.status reste PENDING
@@ -284,7 +291,7 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       depositExistence: order.depositExistence,
       depositPaymentStatus: paymentStatus,
       order,
-      payment: paymentResponse
+      payment: deposit
     });
 
   } catch (err: any) {
@@ -331,10 +338,11 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
     }
 
     // 2. Appel du service Cabupay avec le depositId
-    const paymentResponse = await cabupayPaymentService.getDeposit(order.depositId);
+    const response = await cabupayPaymentService.getDeposit(order.depositId);
+    const deposit = response.data
 
     // 3. Traitement du cas NOT_FOUND (Le dépôt n'existe pas chez Cabupay)
-    if (paymentResponse?.status === 'NOT_FOUND') {
+    if (deposit?.status === 'NOT_FOUND') {
       order.depositExistence = 'NOT_FOUND';
       await order.save();
 
@@ -342,15 +350,16 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
         status: order.status, // Reste PENDING
         depositExistence: order.depositExistence, // NOT_FOUND
         order,
-        payment: paymentResponse
+        payment: deposit
       });
     }
 
     // 4. Traitement du cas FOUND (Le dépôt existe chez Cabupay)
     order.depositExistence = 'FOUND';
 
-    const depositData = paymentResponse?.data;
+    const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
+    console.log(deposit)
 
     // 5. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
     if (paymentStatus === 'COMPLETED') {
@@ -388,7 +397,7 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       depositExistence: order.depositExistence,
       depositPaymentStatus: paymentStatus,
       order,
-      payment: paymentResponse
+      payment: deposit
     });
 
   } catch (err: any) {
