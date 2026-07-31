@@ -49,7 +49,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       status: 'PENDING',
     });
 
-    // 4. Description dynamique (network représente ici le réseau des unités à recharger)
+    // 4. Description dynamique
     const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
 
     // 5. Construction du DTO Cabupay
@@ -70,13 +70,43 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     // 6. Initiation de la demande de dépôt
     const paymentResponse = await cabupayPaymentService.createDeposit(depositDTO);
 
-    // 7. Enregistrement du depositId
-    const depositId = paymentResponse?.data?.depositId;
+    // Extraction des informations clés du retour paiement
+    const paymentData = paymentResponse?.data;
+    const depositId = paymentData?.depositId;
 
     if (depositId) {
       order.depositId = depositId;
-      await order.save();
+      order.depositExistence = 'FOUND';
     }
+
+    // 7. Vérification d'un rejet ou échec synchrone (REJECTED / FAILED / success = false)
+    const pawaStatus = paymentData?.status?.toUpperCase() || paymentData?.pawaResponse?.status?.toUpperCase();
+    const isRejected = pawaStatus === 'REJECTED' || pawaStatus === 'FAILED' || paymentResponse?.success === false;
+
+    if (isRejected) {
+      // Extraction du message d'erreur précis renvoyé par PawaPay/Cabupay
+      const failureObj = paymentData?.pawaResponse?.failureReason;
+      const failureMsg = failureObj?.failureMessage || paymentResponse?.message || 'Paiement rejeté par la passerelle';
+      const failureCode = failureObj?.failureCode;
+
+      order.status = 'FAILED';
+      order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
+      await order.save();
+
+      return res.status(400).json({
+        success: false,
+        message: `Échec de l'initialisation du paiement: ${failureMsg}`,
+        order,
+        payment: {
+          success: false,
+          message: failureMsg,
+          data: paymentData,
+        },
+      });
+    }
+
+    // 8. Succès de l'initialisation (statut ACCEPTED ou PROCESSING)
+    await order.save();
 
     return res.status(201).json({
       success: true,
