@@ -23,7 +23,8 @@ export const predictCorrespondent = async (req: Request, res: Response): Promise
 };
 
 /**
- * 2. Réception du Webhook envoyé par Cabupay (Callback)
+ * 2. Réception du Webhook envoyé par Cabupay / PawaPay (Callback)
+ * Note : PawaPay n'envoie les webhooks que pour les statuts finaux (COMPLETED et FAILED).
  */
 export const handleCabupayWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -38,12 +39,12 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
 
     if (!order) {
       console.error(`[Webhook Cabupay] Commande introuvable: ${clientReference}`);
-      // On répond 200 à PawaPay/Cabupay pour stopper les retries
+      // Reponse 200 pour valider la réception auprès de PawaPay
       res.status(200).json({ success: false, message: 'Commande introuvable' });
       return;
     }
 
-    // 2. Protection d'idempotence STRICTE PawaPay : COMPLETED ou FAILED
+    // 2. Idempotence : Si déjà en statut final, on ne retraite pas
     const FINAL_STATUSES = ['COMPLETED', 'FAILED'];
     if (FINAL_STATUSES.includes(order.status)) {
       console.log(`[Webhook Cabupay] Commande #${order._id} déjà en statut final (${order.status}). Ignoré.`);
@@ -51,20 +52,23 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
       return;
     }
 
-    console.log(status)
+    // Le webhook confirme l'existence effective de la transaction chez PawaPay
+    order.depositExistence = 'FOUND';
+    if (depositId) {
+      order.depositId = depositId;
+    }
 
-    // 3. Traitement selon les SEULS statuts valides PawaPay Deposit
+    // 3. Traitement des statuts finaux PawaPay
     if (status === 'COMPLETED') {
       order.status = 'COMPLETED';
-      order.depositId = depositId || order.depositId;
       if (providerTransactionId) {
         order.providerTransactionId = providerTransactionId;
       }
-      await order.save();
 
+      await order.save();
       console.log(`[Paiement Réussi] Commande #${order._id} mise à jour en COMPLETED`);
 
-      // Envoi de la notification WhatsApp
+      // Envoi de la notification WhatsApp au vendeur
       cabupayWhatsappService
         .notifyNewOrder({
           vendeurName: order.vendeurName || 'Vendeur',
@@ -107,7 +111,6 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     res.status(400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
   }
 };
-
 /**
  * 3. Vérification du statut d'une transaction (Appel direct par le Frontend/Mobile)
  */
