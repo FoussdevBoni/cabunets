@@ -6,6 +6,7 @@ import validator from "validator";
 import crypto from "crypto";
 import { sendOtpEmail } from "../utils/sendOTPEmail";
 import { Vendeur } from "../models/Vendeur";
+import { Client } from "../models/Client";
 
 
 // === Types JWT ===
@@ -114,6 +115,18 @@ export const register = async (req: Request, res: Response) => {
         ...profileData
       });
     }
+
+    if (role === "client") {
+
+
+
+      profile = await Client.create({
+        _id: user._id,
+        email,
+        ...profileData
+      });
+    }
+
 
     // 4️⃣ Envoi de l'OTP par email
     //  await sendOtpEmail(user.email, otp);
@@ -271,6 +284,9 @@ export const getUserProfile = async (req: Request, res: Response) => {
       case 'vendeur':
         roleInfo = await Vendeur.findOne({ _id: user._id });
         break;
+      case 'client':
+        roleInfo = await Client.findOne({ _id: user._id });
+        break;
 
       default:
         roleInfo = null;
@@ -322,7 +338,7 @@ export const updateUser = async (req: Request, res: Response) => {
     await user.save();
 
     let vendeurProfile = null;
-
+    let clientProfile = null 
     if (user.role === "vendeur" && profileData) {
       const allowedProfileData = {
         whatsappNumber: profileData.whatsappNumber,
@@ -340,6 +356,22 @@ export const updateUser = async (req: Request, res: Response) => {
       );
     }
 
+    if (user.role === "client" && profileData) {
+      const allowedProfileData = {
+        whatsappNumber: profileData.whatsappNumber,
+        rechargaPhone: profileData.rechargaPhone,
+
+      };
+
+      clientProfile = await Client.findByIdAndUpdate(
+        user._id,
+        { $set: allowedProfileData },
+        { new: true }
+      );
+    }
+
+    console.log(clientProfile)
+
     res.status(200).json({
       message: "Informations mises à jour avec succès.",
       data: {
@@ -351,7 +383,7 @@ export const updateUser = async (req: Request, res: Response) => {
         isVerified: user.isVerified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        profile: vendeurProfile,
+        profile: user.role==='vendeur' ? vendeurProfile : clientProfile,
       },
     });
   } catch (err) {

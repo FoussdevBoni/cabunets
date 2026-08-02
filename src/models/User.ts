@@ -5,7 +5,7 @@ import bcrypt from "bcrypt";
 export interface IUser extends Document {
   email: string;
   password: string;
-  role: 'vendeur' | 'admin';
+  role: 'vendeur' | 'admin' | 'client';
   username?: string;
   avatar?: string;
   isVerified: boolean;
@@ -28,7 +28,7 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true, select: false },
     username: { type: String },
     avatar: { type: String },
-    role: { type: String, enum: ["superviseur", "vendeur", "admin"], required: true },
+    role: { type: String, enum: ["client", "vendeur", "admin"], required: true , default: 'client' },
     isVerified: { type: Boolean, default: false },
     isPremium: { type: Boolean, default: false },
     passwordResetOtp: { type: String, select: false },
@@ -52,26 +52,8 @@ userSchema.methods.comparePassword = async function (candidatePassword: string) 
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// -----------------------------
-// VIRTUALS POPULATE
-// -----------------------------
 
-// Dernier balance pour un vendeur
-userSchema.virtual("lastBalanceVendeur", {
-  ref: "Balance",
-  localField: "_id",
-  foreignField: "vendeurId",
-  justOne: true, // 1 balance
-  options: { sort: { createdAt: -1 } }, // dernier
-});
 
-// Dernier balance pour un superviseur
-userSchema.virtual("lastBalanceSuperviseur", {
-  ref: "Balance",
-  localField: "_id",
-  foreignField: "superviseurId",
-  justOne: true, // 1 balance
-  options: { sort: { createdAt: -1 } }, // dernier
-});
+
 
 export default mongoose.model<IUser>("User", userSchema);

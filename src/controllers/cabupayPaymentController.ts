@@ -39,7 +39,6 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
 
     if (!order) {
       console.error(`[Webhook Cabupay] Commande introuvable: ${clientReference}`);
-      // Reponse 200 pour valider la réception auprès de PawaPay
       res.status(200).json({ success: false, message: 'Commande introuvable' });
       return;
     }
@@ -65,12 +64,9 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
         order.providerTransactionId = providerTransactionId;
       }
 
-      await order.save();
-      console.log(`[Paiement Réussi] Commande #${order._id} mise à jour en COMPLETED`);
-
       // Envoi de la notification WhatsApp au vendeur
-      cabupayWhatsappService
-        .notifyNewOrder({
+      try {
+        await cabupayWhatsappService.notifyNewOrder({
           vendeurName: order.vendeurName || 'Vendeur',
           vendeurPhone: order.vendeurPhone,
           orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
@@ -79,22 +75,32 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
           price: order.price,
           currency: order.currency || 'FC',
           customerPhone: order.phoneNumber,
-        })
-        .catch((err) => {
-          console.error(`[WhatsApp Error] Échec pour commande #${order._id}:`, err.message || err);
         });
+
+        // ✅ Mise à jour des champs WhatsApp UNIQUEMENT si l'envoi a réussi
+        order.whatsappSent = true;
+        order.whatsappSentAt = new Date();
+        
+        console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
+      } catch (whatsappError: any) {
+        // ❌ En cas d'échec, on ne met pas à jour les champs whatsappSent
+        console.error(`[WhatsApp Error] Échec pour commande #${order._id}:`, whatsappError.message || whatsappError);
+      }
+
+      await order.save();
+      console.log(`[Paiement Réussi] Commande #${order._id} mise à jour en COMPLETED`);
 
     } else if (status === 'FAILED') {
       order.status = 'FAILED';
 
-      console.log("[handleCabupayWebhook]: failureReason", failureReason )
+      console.log("[handleCabupayWebhook]: failureReason", failureReason);
 
       if (failureReason) {
         if (typeof failureReason === 'object' && failureReason !== null && 'failureMessage' in failureReason) {
           const code = (failureReason as any).failureCode || 'FAILED';
           const msg = (failureReason as any).failureMessage;
           order.failureReason = `${code}: ${msg}`;
-          order.failureCode=code
+          order.failureCode = code;
         } else {
           order.failureReason = typeof failureReason === 'string'
             ? failureReason
@@ -114,6 +120,7 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     res.status(400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
   }
 };
+
 /**
  * 3. Vérification du statut d'une transaction (Appel direct par le Frontend/Mobile)
  */

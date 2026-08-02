@@ -199,6 +199,52 @@ export const updateOrder = async (req: Request, res: Response): Promise<Response
 };
 
 /**
+ * Marquer une commande comme livrée (DELIVERED)
+ * Uniquement si le statut actuel est "COMPLETED"
+ */
+export const deliverOrder = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer la commande
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ error: 'Commande non trouvée' });
+    }
+    
+    // Vérifier que le statut actuel est "COMPLETED"
+    if (order.status !== 'COMPLETED') {
+      return res.status(400).json({ 
+        error: `Impossible de livrer une commande avec le statut "${order.status}". Le statut doit être "COMPLETED"` 
+      });
+    }
+    
+    // Mettre à jour le statut vers "DELIVERED"
+    // updatedAt sera automatiquement mis à jour par Mongoose (timestamps: true)
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      { 
+        status: 'DELIVERED',
+        deliveredAt: new Date()
+      },
+      { new: true }
+    );
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Commande marquée comme livrée avec succès',
+      order: updatedOrder
+    });
+    
+  } catch (err: any) {
+    console.error('Erreur deliverOrder:', err);
+    return res.status(500).json({ 
+      error: 'Erreur lors de la mise à jour de la commande' 
+    });
+  }
+};
+
+/**
  * Supprimer une commande
  */
 export const deleteOrder = async (req: Request, res: Response): Promise<Response> => {
@@ -314,14 +360,14 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
     const { id, orderId } = req.params;
     const targetId = id || orderId;
 
-    // 1. Récupération de la commande Mongoose
+    // 1. Récupération de la commande
     const order = await Order.findById(targetId);
     if (!order) {
       return res.status(404).json({ error: 'Commande introuvable' });
     }
 
-    // Si la commande est déjà dans un état final en BDD, on renvoie immédiatement le résultat
-    if (order.status === 'COMPLETED' || order.status === 'FAILED') {
+    // Si la commande est déjà dans un état final, on renvoie immédiatement
+    if (order.status === 'COMPLETED' || order.status === 'FAILED' || order.status === 'DELIVERED') {
       return res.json({ 
         status: order.status, 
         depositExistence: order.depositExistence,
@@ -329,7 +375,7 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       });
     }
 
-    // Vérification de la présence du depositId Cabupay
+    // Vérification du depositId
     if (!order.depositId) {
       return res.status(400).json({
         error: "Aucun depositId (Cabupay) associé à cette commande.",
@@ -337,31 +383,30 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       });
     }
 
-    // 2. Appel du service Cabupay avec le depositId
+    // 2. Appel du service Cabupay
     const response = await cabupayPaymentService.getDeposit(order.depositId);
-    const deposit = response.data
+    const deposit = response.data;
 
-    // 3. Traitement du cas NOT_FOUND (Le dépôt n'existe pas chez Cabupay)
+    // 3. Cas où le dépôt n'existe pas chez Cabupay
     if (deposit?.status === 'NOT_FOUND') {
       order.depositExistence = 'NOT_FOUND';
       await order.save();
 
       return res.json({
-        status: order.status, // Reste PENDING
-        depositExistence: order.depositExistence, // NOT_FOUND
+        status: order.status,
+        depositExistence: order.depositExistence,
         order,
         payment: deposit
       });
     }
 
-    // 4. Traitement du cas FOUND (Le dépôt existe chez Cabupay)
+    // 4. Le dépôt existe
     order.depositExistence = 'FOUND';
 
     const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
-    console.log(deposit)
 
-    // 5. Mise à jour de l'état en BDD uniquement si le statut est final (COMPLETED ou FAILED)
+    // 5. Mise à jour du statut si final
     if (paymentStatus === 'COMPLETED') {
       order.status = 'COMPLETED';
     } else if (paymentStatus === 'FAILED') {
@@ -371,10 +416,9 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       }
     }
 
-    await order.save();
-
-    // 6. Notification WhatsApp (uniquement si le paiement vient d'être validé en COMPLETED)
+    // 6. Notification WhatsApp si paiement validé
     if (paymentStatus === 'COMPLETED') {
+      // Envoyer la notification
       cabupayWhatsappService
         .notifyNewOrder({
           vendeurName: order.vendeurName || 'Vendeur',
@@ -389,9 +433,15 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
         .catch((err) => {
           console.error(`[WhatsApp Error] Échec de notification pour commande #${order._id}:`, err.message || err);
         });
+
+      // Marquer la notification comme envoyée
+      order.whatsappSent = true;
+      order.whatsappSentAt = new Date();
     }
 
-    // 7. Retour de la commande mise à jour
+    await order.save();
+
+    // 7. Retour de la réponse
     return res.json({
       status: order.status,
       depositExistence: order.depositExistence,
@@ -408,6 +458,5 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
     });
   }
 };
-
 
 

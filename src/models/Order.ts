@@ -13,13 +13,18 @@ export interface IOrder extends Document {
   vendeurId: string;
   vendeurName: string;
   vendeurPhone: string;
-  depositId?: string;             // Reference unique du paiement Cabupay
+  clientId: string;
+  depositId?: string;
+  // Reference unique du paiement Cabupay
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
   failureCode?: string;
-  status: "PENDING" | "COMPLETED" | "FAILED";
+  status: "PENDING" | "COMPLETED" | "FAILED" | "DELIVERED";
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   depositPaymentStatus?: string;
+  whatsappSent?: boolean;
+  whatsappSentAt?: Date;
+  deliveredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +46,8 @@ const OrderSchema = new Schema<IOrder>(
     correspondent: { type: String, required: false },
     offerId: { type: String, required: true },
     vendeurId: { type: String, required: true },
+    clientId: { type: String, required: false },
+
     vendeurName: { type: String, required: true },
     vendeurPhone: { type: String, required: false },
     depositId: { type: String, required: false, index: true },

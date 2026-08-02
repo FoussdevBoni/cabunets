@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import { register } from './authController';
 import { Vendeur } from '../models/Vendeur';
+import { Client } from '../models/Client';
 
 export const createUser = async (req: Request, res: Response) => {
   try {
@@ -124,6 +125,14 @@ export const updateUser = async (req: Request, res: Response) => {
 
     if (user.role === "vendeur" && profileData) {
       profile = await Vendeur.findByIdAndUpdate(
+        user._id,
+        { $set: profileData },
+        { new: true }
+      );
+    }
+
+     if (user.role === "client" && profileData) {
+      profile = await Client.findByIdAndUpdate(
         user._id,
         { $set: profileData },
         { new: true }
