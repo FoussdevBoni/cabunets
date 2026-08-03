@@ -93,7 +93,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       const failureCode = failureObj?.failureCode;
 
       order.status = 'FAILED';
-      order.failureCode= failureCode
+      order.failureCode = failureCode
       order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
       const messageError = getPawapayError(failureCode)
       await order.save();
@@ -205,41 +205,41 @@ export const updateOrder = async (req: Request, res: Response): Promise<Response
 export const deliverOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { id } = req.params;
-    
+
     // Récupérer la commande
     const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ error: 'Commande non trouvée' });
     }
-    
+
     // Vérifier que le statut actuel est "COMPLETED"
     if (order.status !== 'COMPLETED') {
-      return res.status(400).json({ 
-        error: `Impossible de livrer une commande avec le statut "${order.status}". Le statut doit être "COMPLETED"` 
+      return res.status(400).json({
+        error: `Impossible de livrer une commande avec le statut "${order.status}". Le statut doit être "COMPLETED"`
       });
     }
-    
+
     // Mettre à jour le statut vers "DELIVERED"
     // updatedAt sera automatiquement mis à jour par Mongoose (timestamps: true)
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
-      { 
+      {
         status: 'DELIVERED',
         deliveredAt: new Date()
       },
       { new: true }
     );
-    
+
     return res.status(200).json({
       success: true,
       message: 'Commande marquée comme livrée avec succès',
       order: updatedOrder
     });
-    
+
   } catch (err: any) {
     console.error('Erreur deliverOrder:', err);
-    return res.status(500).json({ 
-      error: 'Erreur lors de la mise à jour de la commande' 
+    return res.status(500).json({
+      error: 'Erreur lors de la mise à jour de la commande'
     });
   }
 };
@@ -256,6 +256,7 @@ export const deleteOrder = async (req: Request, res: Response): Promise<Response
     return res.status(500).json({ error: 'Erreur lors de la suppression de la commande' });
   }
 };
+
 
 
 
@@ -276,10 +277,10 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
 
     // Si la commande est déjà terminée localement, on ne re-synchronise pas
     if (order.status === 'COMPLETED' || order.status === 'FAILED') {
-      return res.json({ 
-        status: order.status, 
+      return res.json({
+        status: order.status,
         depositExistence: order.depositExistence,
-        order 
+        order
       });
     }
 
@@ -293,10 +294,7 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
 
     // 2. Appel de l'API externe
     const response = await cabupayPaymentService.getDeposit(order.depositId);
-
     const deposit = response.data
-
-
 
     // 3. Cas NOT_FOUND : Le dépôt n'existe pas chez Cabupay
     if (deposit?.status === 'NOT_FOUND') {
@@ -313,7 +311,7 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
 
     // 4. Cas FOUND : Le dépôt existe chez Cabupay
     order.depositExistence = 'FOUND';
-    
+
     const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
 
@@ -329,6 +327,38 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       }
     }
     // Pour ACCEPTED, PROCESSING, IN_RECONCILIATION -> order.status reste PENDING
+
+    // 5. 🔥 Envoi du message WhatsApp UNIQUEMENT si :
+    //    - Le paiement est COMPLETED
+    //    - ET que le message n'a PAS encore été envoyé (!order.whatsappSent)
+    if (paymentStatus === 'COMPLETED' && !order.whatsappSent) {
+      try {
+        // Envoyer la notification au vendeur
+        await cabupayWhatsappService.notifyNewOrder({
+          vendeurName: order.vendeurName || 'Vendeur',
+          vendeurPhone: order.vendeurPhone,
+          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
+          network: order.network,
+          units: order.units,
+          price: order.price,
+          currency: order.currency || 'FC',
+          customerPhone: order.phoneNumber,
+        });
+
+        // Marquer comme envoyé
+        order.whatsappSent = true;
+        order.whatsappSentAt = new Date();
+
+        console.log(`✅ WhatsApp envoyé pour la commande #${order._id}`);
+      } catch (whatsappError: any) {
+        // Si l'envoi échoue, on ne bloque pas la mise à jour de la commande
+        // mais on log l'erreur pour pouvoir réessayer plus tard
+        console.error(`❌ Échec d'envoi WhatsApp pour la commande #${order._id}:`,
+          whatsappError.message);
+        // On ne marque PAS comme envoyé pour pouvoir réessayer plus tard
+        // order.whatsappSent reste false
+      }
+    }
 
     await order.save();
 
@@ -349,7 +379,6 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
   }
 };
 
-
 /**
  * Vérifie le statut d'une transaction auprès de Cabupay,
  * met à jour la commande en BDD et envoie un message au vendeur s'il s'agit d'une nouvelle validation.
@@ -368,10 +397,10 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
 
     // Si la commande est déjà dans un état final, on renvoie immédiatement
     if (order.status === 'COMPLETED' || order.status === 'FAILED' || order.status === 'DELIVERED') {
-      return res.json({ 
-        status: order.status, 
+      return res.json({
+        status: order.status,
         depositExistence: order.depositExistence,
-        order 
+        order
       });
     }
 
@@ -413,14 +442,17 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       order.status = 'FAILED';
       if (depositData?.failureReason?.failureMessage) {
         order.failureReason = depositData.failureReason.failureMessage;
+        order.failureCode = depositData.failureCode;
       }
     }
 
-    // 6. Notification WhatsApp si paiement validé
-    if (paymentStatus === 'COMPLETED') {
-      // Envoyer la notification
-      cabupayWhatsappService
-        .notifyNewOrder({
+    // 6. 🔥 Notification WhatsApp UNIQUEMENT si :
+    //    - Le paiement est COMPLETED
+    //    - ET que le message n'a PAS encore été envoyé (!order.whatsappSent)
+    if (paymentStatus === 'COMPLETED' && !order.whatsappSent) {
+      try {
+        // Envoyer la notification
+        await cabupayWhatsappService.notifyNewOrder({
           vendeurName: order.vendeurName || 'Vendeur',
           vendeurPhone: order.vendeurPhone,
           orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
@@ -429,14 +461,17 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
           price: order.price,
           currency: order.currency || 'FC',
           customerPhone: order.phoneNumber,
-        })
-        .catch((err) => {
-          console.error(`[WhatsApp Error] Échec de notification pour commande #${order._id}:`, err.message || err);
         });
 
-      // Marquer la notification comme envoyée
-      order.whatsappSent = true;
-      order.whatsappSentAt = new Date();
+        // Marquer la notification comme envoyée
+        order.whatsappSent = true;
+        order.whatsappSentAt = new Date();
+
+        console.log(`✅ WhatsApp envoyé pour la commande #${order._id}`);
+      } catch (whatsappError: any) {
+        console.error(`❌ Échec d'envoi WhatsApp pour la commande #${order._id}:`, whatsappError.message);
+        // order.whatsappSent reste false pour réessayer plus tard
+      }
     }
 
     await order.save();
@@ -459,4 +494,69 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
   }
 };
 
+/**
+ * Envoie les messages WhatsApp pour toutes les commandes COMPLETED
+ * dont le message n'a pas encore été envoyé
+ * Endpoint: GET /api/orders/send-pending-whatsapp
+ */
+export const sendPendingWhatsAppMessages = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    // Récupérer toutes les commandes COMPLETED sans message WhatsApp envoyé
+    const pendingOrders = await Order.find({
+      status: 'COMPLETED',
+      whatsappSent: { $ne: true }
+    });
 
+    if (pendingOrders.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'Aucune commande en attente d\'envoi WhatsApp',
+        total: 0
+      });
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    // Parcourir et envoyer chaque message
+    for (const order of pendingOrders) {
+      try {
+        await cabupayWhatsappService.notifyNewOrder({
+          vendeurName: order.vendeurName || 'Vendeur',
+          vendeurPhone: order.vendeurPhone,
+          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
+          network: order.network,
+          units: order.units,
+          price: order.price,
+          currency: order.currency || 'FC',
+          customerPhone: order.phoneNumber,
+        });
+
+        order.whatsappSent = true;
+        order.whatsappSentAt = new Date();
+        await order.save();
+        sentCount++;
+        
+      } catch (error: any) {
+        failedCount++;
+        console.error(`❌ Échec envoi WhatsApp commande #${order._id}:`, error.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Traitement terminé',
+      total: pendingOrders.length,
+      sent: sentCount,
+      failed: failedCount
+    });
+
+  } catch (err: any) {
+    console.error('❌ Erreur:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: 'Erreur lors de l\'envoi des messages',
+      details: err.message
+    });
+  }
+};
