@@ -1,23 +1,22 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
-  phoneNumber: string;            // Téléphone principal (client)
-  paymentPhone?: string;          // Téléphone utilisé pour le paiement Mobile Money
-  contactPhone?: string;          // Téléphone de contact / WhatsApp
+  phoneNumber: string;
+  paymentPhone?: string;
+  contactPhone?: string;
   units: number;
   price: number;
   currency: "XOF" | "FCFA" | "CDF" | "USD";
-  network: string;                // Réseau de la recharge (ex: MTN, Moov, Celtiis, Vodacom...)
-  correspondent?: string;         // Identifiant opérateur Cabupay (ex: MTN_MOMO_BEN)
+  network: string;
+  correspondent?: string;
   offerId: string;
   vendeurId: string;
   vendeurName: string;
   vendeurPhone: string;
   clientId: string;
   depositId?: string;
-  // Reference unique du paiement Cabupay
-  providerTransactionId?: string; // ID transaction opérateur final
-  failureReason?: string;         // Motif en cas d'échec du paiement
+  providerTransactionId?: string;
+  failureReason?: string;
   failureCode?: string;
   status: "PENDING" | "COMPLETED" | "FAILED" | "DELIVERED";
   depositExistence?: 'FOUND' | 'NOT_FOUND';
@@ -47,27 +46,40 @@ const OrderSchema = new Schema<IOrder>(
     offerId: { type: String, required: true },
     vendeurId: { type: String, required: true },
     clientId: { type: String, required: false },
-
     vendeurName: { type: String, required: true },
     vendeurPhone: { type: String, required: false },
     depositId: { type: String, required: false, index: true },
     providerTransactionId: { type: String, required: false },
     failureReason: { type: String, required: false },
     failureCode: { type: String, required: false },
-
     status: {
       type: String,
       required: true,
       default: "PENDING",
-      enum: ["PENDING", "COMPLETED", "FAILED"]
+      enum: ["PENDING", "COMPLETED", "FAILED", "DELIVERED"] // Ajout de DELIVERED
     },
     depositExistence: {
       type: String,
       enum: ['FOUND', 'NOT_FOUND'],
     },
     depositPaymentStatus: { type: String },
+    
+    // ✅ AJOUTEZ CES CHAMPS MANQUANTS
+    whatsappSent: { 
+      type: Boolean, 
+      default: false 
+    },
+    whatsappSentAt: { 
+      type: Date 
+    },
+    deliveredAt: { 
+      type: Date 
+    },
   },
   { timestamps: true }
 );
+
+// Ajoutez un index pour améliorer les performances des requêtes
+OrderSchema.index({ status: 1, whatsappSent: 1 });
 
 export const Order = mongoose.model<IOrder>("Order", OrderSchema);

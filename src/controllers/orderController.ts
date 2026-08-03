@@ -500,6 +500,7 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
  * Endpoint: GET /api/orders/send-pending-whatsapp
  */
 export const sendPendingWhatsAppMessages = async (req: Request, res: Response): Promise<Response> => {
+  
   try {
     // Récupérer toutes les commandes COMPLETED sans message WhatsApp envoyé
     const pendingOrders = await Order.find({
