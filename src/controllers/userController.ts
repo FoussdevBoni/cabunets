@@ -13,8 +13,6 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-
-
 export const getUsers = async (req: Request, res: Response) => {
   try {
     const { day, week, month, year, ...filters } = req.query;
@@ -26,7 +24,7 @@ export const getUsers = async (req: Request, res: Response) => {
       const now = new Date();
       let start: Date | null = null;
       let end: Date | null = null;
-
+      
       if (day) {
         start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -53,19 +51,43 @@ export const getUsers = async (req: Request, res: Response) => {
 
     const users = await User.find(query);
 
-    res.json(users);
+    // Récupération des profils pour chaque utilisateur
+    const usersWithProfiles = await Promise.all(
+      users.map(async (user) => {
+        let profile = null;
+        
+        // Récupérer le profil selon le rôle
+        if (user.role === 'vendeur') {
+          profile = await Vendeur.findOne({ _id: user._id });
+        } else if (user.role === 'client') {
+          profile = await Client.findOne({ _id: user._id });
+        }
+        // Pour admin, profile reste null
+
+        // Retourner l'utilisateur avec son profil
+        return {
+          _id: user._id,
+          email: user.email,
+          role: user.role,
+          username: user.username,
+          avatar: user.avatar,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          profile: profile
+        };
+      })
+    );
+
+    res.json(usersWithProfiles);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Erreur lors de la récupération des users" });
   }
 };
 
-
-
-
 export const getUserById = async (req: Request, res: Response) => {
   try {
-  
-
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: "User introuvable." });
@@ -74,30 +96,33 @@ export const getUserById = async (req: Request, res: Response) => {
     // Récupération des infos selon le rôle
     let roleInfo: any = null;
     switch (user.role) {
-   
-       case "vendeur":
+      case "vendeur":
         roleInfo = await Vendeur.findOne({ _id: user._id });
+        break;
+      case "client":
+        roleInfo = await Client.findOne({ _id: user._id });
         break;
       default:
         roleInfo = null;
     }
 
-
     res.status(200).json({
-        _id: user._id,
-        email: user.email,
-        role: user.role,
-        username: user.username,
-        isVerified: user.isVerified,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        profile: roleInfo,
-      });
+      _id: user._id,
+      email: user.email,
+      role: user.role,
+      username: user.username,
+      avatar: user.avatar,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      profile: roleInfo,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
+
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
@@ -131,7 +156,7 @@ export const updateUser = async (req: Request, res: Response) => {
       );
     }
 
-     if (user.role === "client" && profileData) {
+    if (user.role === "client" && profileData) {
       profile = await Client.findByIdAndUpdate(
         user._id,
         { $set: profileData },
@@ -139,7 +164,6 @@ export const updateUser = async (req: Request, res: Response) => {
       );
     }
 
-    
     res.status(200).json({
       message: "Informations mises à jour avec succès.",
       user: {
@@ -157,7 +181,6 @@ export const updateUser = async (req: Request, res: Response) => {
   }
 };
 
-
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
@@ -168,13 +191,36 @@ export const deleteUser = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getProfile = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
-    const user = await User.findById(userId).select("-password"); // ne pas renvoyer le mot de passe
-    res.status(200).json(user);
+    const user = await User.findById(userId).select("-password");
+    
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
+    }
+
+    // Récupérer le profil selon le rôle
+    let profile = null;
+    if (user.role === 'vendeur') {
+      profile = await Vendeur.findOne({ _id: user._id });
+    } else if (user.role === 'client') {
+      profile = await Client.findOne({ _id: user._id });
+    }
+
+    res.status(200).json({
+      _id: user._id,
+      email: user.email,
+      role: user.role,
+      username: user.username,
+      avatar: user.avatar,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      profile: profile
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Erreur serveur", error: err });
   }
 };
