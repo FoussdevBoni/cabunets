@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { Order } from '../models/Order'; // Ajuste le chemin selon ton projet
-import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService'; // Ajuste le chemin
-import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
+import { Order } from '../models/Order';
+import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService';
 import { getPawapayError } from '../utils/getPawapayErrors';
-
-
+import { orderNotificationService } from '../services/orderNotificationService';
 
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -93,9 +91,9 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       const failureCode = failureObj?.failureCode;
 
       order.status = 'FAILED';
-      order.failureCode = failureCode
+      order.failureCode = failureCode;
       order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
-      const messageError = getPawapayError(failureCode)
+      const messageError = getPawapayError(failureCode);
       await order.save();
 
       return res.status(400).json({
@@ -128,6 +126,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     });
   }
 };
+
 /**
  * Récupération des commandes avec filtres temporels
  */
@@ -220,7 +219,6 @@ export const deliverOrder = async (req: Request, res: Response): Promise<Respons
     }
 
     // Mettre à jour le statut vers "DELIVERED"
-    // updatedAt sera automatiquement mis à jour par Mongoose (timestamps: true)
     const updatedOrder = await Order.findByIdAndUpdate(
       id,
       {
@@ -257,9 +255,6 @@ export const deleteOrder = async (req: Request, res: Response): Promise<Response
   }
 };
 
-
-
-
 /**
  * Vérifie le statut d'une transaction auprès de Cabupay et met à jour la commande en BDD
  * Endpoint: GET /api/orders/:id/sync-status (ou /api/orders/:orderId/sync-status)
@@ -294,7 +289,7 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
 
     // 2. Appel de l'API externe
     const response = await cabupayPaymentService.getDeposit(order.depositId);
-    const deposit = response.data
+    const deposit = response.data;
 
     // 3. Cas NOT_FOUND : Le dépôt n'existe pas chez Cabupay
     if (deposit?.status === 'NOT_FOUND') {
@@ -302,8 +297,8 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       await order.save();
 
       return res.json({
-        status: order.status, // Reste PENDING
-        depositExistence: order.depositExistence, // NOT_FOUND
+        status: order.status,
+        depositExistence: order.depositExistence,
         order,
         payment: deposit
       });
@@ -322,41 +317,26 @@ export const syncOrderStatus = async (req: Request, res: Response): Promise<Resp
       order.status = 'FAILED';
       if (depositData?.failureReason?.failureMessage) {
         order.failureReason = depositData.failureReason.failureMessage;
-        console.log(depositData.failureCode)
-        order.failureCode = depositData.failureCode
+        order.failureCode = depositData.failureCode;
       }
     }
-    // Pour ACCEPTED, PROCESSING, IN_RECONCILIATION -> order.status reste PENDING
 
-    // 5. 🔥 Envoi du message WhatsApp UNIQUEMENT si :
+    // 5. Envoi de la notification WhatsApp UNIQUEMENT si :
     //    - Le paiement est COMPLETED
     //    - ET que le message n'a PAS encore été envoyé (!order.whatsappSent)
     if (paymentStatus === 'COMPLETED' && !order.whatsappSent) {
       try {
-        // Envoyer la notification au vendeur
-        await cabupayWhatsappService.notifyNewOrder({
-          vendeurName: order.vendeurName || 'Vendeur',
-          vendeurPhone: order.vendeurPhone,
-          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-          network: order.network,
-          units: order.units,
-          price: order.price,
-          currency: order.currency || 'FC',
-          customerPhone: order.phoneNumber,
-        });
-
-        // Marquer comme envoyé
-        order.whatsappSent = true;
-        order.whatsappSentAt = new Date();
-
-        console.log(`✅ WhatsApp envoyé pour la commande #${order._id}`);
+        // ✅ Utiliser le service atomique
+        const result = await orderNotificationService.sendOrderNotification(order._id.toString());
+        
+        if (result.success) {
+          console.log(`✅ Notification envoyée avec succès pour la commande #${order._id}`);
+        } else {
+          console.log(`ℹ️ Notification non envoyée pour #${order._id}: ${result.reason}`);
+        }
       } catch (whatsappError: any) {
-        // Si l'envoi échoue, on ne bloque pas la mise à jour de la commande
-        // mais on log l'erreur pour pouvoir réessayer plus tard
-        console.error(`❌ Échec d'envoi WhatsApp pour la commande #${order._id}:`,
-          whatsappError.message);
-        // On ne marque PAS comme envoyé pour pouvoir réessayer plus tard
-        // order.whatsappSent reste false
+        console.error(`❌ Échec d'envoi de notification pour la commande #${order._id}:`, whatsappError.message);
+        // On ne bloque pas la mise à jour de la commande
       }
     }
 
@@ -446,30 +426,21 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
       }
     }
 
-    // 6. 🔥 Notification WhatsApp UNIQUEMENT si :
+    // 6. Envoi de la notification WhatsApp UNIQUEMENT si :
     //    - Le paiement est COMPLETED
     //    - ET que le message n'a PAS encore été envoyé (!order.whatsappSent)
     if (paymentStatus === 'COMPLETED' && !order.whatsappSent) {
       try {
-        // Envoyer la notification
-        await cabupayWhatsappService.notifyNewOrder({
-          vendeurName: order.vendeurName || 'Vendeur',
-          vendeurPhone: order.vendeurPhone,
-          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-          network: order.network,
-          units: order.units,
-          price: order.price,
-          currency: order.currency || 'FC',
-          customerPhone: order.phoneNumber,
-        });
-
-        // Marquer la notification comme envoyée
-        order.whatsappSent = true;
-        order.whatsappSentAt = new Date();
-
-        console.log(`✅ WhatsApp envoyé pour la commande #${order._id}`);
+        // ✅ Utiliser le service atomique
+        const result = await orderNotificationService.sendOrderNotification(order._id.toString());
+        
+        if (result.success) {
+          console.log(`✅ Notification envoyée avec succès pour la commande #${order._id}`);
+        } else {
+          console.log(`ℹ️ Notification non envoyée pour #${order._id}: ${result.reason}`);
+        }
       } catch (whatsappError: any) {
-        console.error(`❌ Échec d'envoi WhatsApp pour la commande #${order._id}:`, whatsappError.message);
+        console.error(`❌ Échec d'envoi de notification pour la commande #${order._id}:`, whatsappError.message);
         // order.whatsappSent reste false pour réessayer plus tard
       }
     }
@@ -500,60 +471,22 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
  * Endpoint: GET /api/orders/send-pending-whatsapp
  */
 export const sendPendingWhatsAppMessages = async (req: Request, res: Response): Promise<Response> => {
-  
   try {
-    // Récupérer toutes les commandes COMPLETED sans message WhatsApp envoyé
-    const pendingOrders = await Order.find({
-      status: 'COMPLETED',
-      whatsappSent: { $ne: true }
-    });
-
-    if (pendingOrders.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'Aucune commande en attente d\'envoi WhatsApp',
-        total: 0
-      });
-    }
-
-    let sentCount = 0;
-    let failedCount = 0;
-
-    // Parcourir et envoyer chaque message
-    for (const order of pendingOrders) {
-      try {
-        await cabupayWhatsappService.notifyNewOrder({
-          vendeurName: order.vendeurName || 'Vendeur',
-          vendeurPhone: order.vendeurPhone,
-          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-          network: order.network,
-          units: order.units,
-          price: order.price,
-          currency: order.currency || 'FC',
-          customerPhone: order.phoneNumber,
-        });
-
-        order.whatsappSent = true;
-        order.whatsappSentAt = new Date();
-        await order.save();
-        sentCount++;
-        
-      } catch (error: any) {
-        failedCount++;
-        console.error(`❌ Échec envoi WhatsApp commande #${order._id}:`, error.message);
-      }
-    }
+    // ✅ Utiliser le service pour envoyer toutes les notifications en attente
+    const result = await orderNotificationService.sendPendingNotifications();
 
     return res.status(200).json({
       success: true,
       message: 'Traitement terminé',
-      total: pendingOrders.length,
-      sent: sentCount,
-      failed: failedCount
+      total: result.total,
+      sent: result.sent,
+      failed: result.failed,
+      alreadySent: result.alreadySent,
+      notEligible: result.notEligible
     });
 
   } catch (err: any) {
-    console.error('❌ Erreur:', err.message);
+    console.error('❌ Erreur sendPendingWhatsAppMessages:', err.message);
     return res.status(500).json({
       success: false,
       error: 'Erreur lors de l\'envoi des messages',

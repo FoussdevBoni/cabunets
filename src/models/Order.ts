@@ -21,8 +21,14 @@ export interface IOrder extends Document {
   status: "PENDING" | "COMPLETED" | "FAILED" | "DELIVERED";
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   depositPaymentStatus?: string;
+  
+  // Champs pour la notification WhatsApp
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
+  whatsappProcessing?: boolean;
+  whatsappProcessingAt?: Date;
+  whatsappProcessingStuckAt?: Date;
+  
   deliveredAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -56,7 +62,7 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       required: true,
       default: "PENDING",
-      enum: ["PENDING", "COMPLETED", "FAILED", "DELIVERED"] // Ajout de DELIVERED
+      enum: ["PENDING", "COMPLETED", "FAILED", "DELIVERED"]
     },
     depositExistence: {
       type: String,
@@ -64,7 +70,7 @@ const OrderSchema = new Schema<IOrder>(
     },
     depositPaymentStatus: { type: String },
     
-    // ✅ AJOUTEZ CES CHAMPS MANQUANTS
+    // ✅ CHAMPS POUR LA NOTIFICATION WHATSAPP
     whatsappSent: { 
       type: Boolean, 
       default: false 
@@ -72,6 +78,17 @@ const OrderSchema = new Schema<IOrder>(
     whatsappSentAt: { 
       type: Date 
     },
+    whatsappProcessing: { 
+      type: Boolean, 
+      default: false 
+    },
+    whatsappProcessingAt: { 
+      type: Date 
+    },
+    whatsappProcessingStuckAt: { 
+      type: Date 
+    },
+    
     deliveredAt: { 
       type: Date 
     },
@@ -79,7 +96,14 @@ const OrderSchema = new Schema<IOrder>(
   { timestamps: true }
 );
 
-// Ajoutez un index pour améliorer les performances des requêtes
-OrderSchema.index({ status: 1, whatsappSent: 1 });
+// ✅ INDEX POUR OPTIMISER LES RECHERCHES
+// Index pour trouver les commandes en attente de notification
+OrderSchema.index({ status: 1, whatsappSent: 1, whatsappProcessing: 1 });
+
+// Index pour nettoyer les verrous bloqués
+OrderSchema.index({ whatsappProcessing: 1, whatsappProcessingAt: 1 });
+
+// Index pour les recherches par depositId
+OrderSchema.index({ depositId: 1 });
 
 export const Order = mongoose.model<IOrder>("Order", OrderSchema);
