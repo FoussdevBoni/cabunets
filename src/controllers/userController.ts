@@ -224,3 +224,117 @@ export const getProfile = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Erreur serveur", error: err });
   }
 };
+
+// ============================
+// VERIFY USER
+// ============================
+export const verifyUser = async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur introuvable." });
+    }
+
+    // Vérifier si l'utilisateur est déjà vérifié
+    if (user.isVerified) {
+      return res.status(400).json({ 
+        message: "Cet utilisateur est déjà vérifié." 
+      });
+    }
+
+    // Mettre à jour le statut de vérification
+    user.isVerified = true;
+    await user.save();
+
+    // Récupérer le profil selon le rôle
+    let profile = null;
+    if (user.role === 'vendeur') {
+      profile = await Vendeur.findOne({ _id: user._id });
+    } else if (user.role === 'client') {
+      profile = await Client.findOne({ _id: user._id });
+    }
+
+    res.status(200).json({
+      message: "Utilisateur vérifié avec succès.",
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        username: user.username,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profile: profile
+      }
+    });
+  } catch (err) {
+    console.error("Erreur lors de la vérification de l'utilisateur :", err);
+    res.status(500).json({ 
+      message: "Erreur serveur lors de la vérification de l'utilisateur",
+      error: err 
+    });
+  }
+};
+
+// ============================
+// TOGGLE USER STATUS (Activer/Désactiver)
+// ============================
+export const toggleUserStatus = async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+    const { isActive } = req.body; // true = activer, false = désactiver
+
+    // Vérifier si l'utilisateur existe
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Utilisateur introuvable." });
+    }
+
+    // Empêcher la désactivation de son propre compte
+    const currentUserId = (req as any).user?.id;
+    if (currentUserId && userId === currentUserId) {
+      return res.status(400).json({ 
+        message: "Vous ne pouvez pas désactiver votre propre compte." 
+      });
+    }
+
+    // Mettre à jour le statut actif
+    user.isActive = isActive !== undefined ? isActive : !user.isActive;
+    await user.save();
+
+    // Récupérer le profil selon le rôle
+    let profile = null;
+    if (user.role === 'vendeur') {
+      profile = await Vendeur.findOne({ _id: user._id });
+    } else if (user.role === 'client') {
+      profile = await Client.findOne({ _id: user._id });
+    }
+
+    const statusText = user.isActive ? 'activé' : 'désactivé';
+    
+    res.status(200).json({
+      message: `Compte utilisateur ${statusText} avec succès.`,
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        username: user.username,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        s: user.isActive,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profile: profile
+      }
+    });
+  } catch (err) {
+    console.error("Erreur lors de l'activation/désactivation du compte :", err);
+    res.status(500).json({ 
+      message: "Erreur serveur lors de l'activation/désactivation du compte",
+      error: err 
+    });
+  }
+};

@@ -10,6 +10,7 @@ export interface IUser extends Document {
   avatar?: string;
   isVerified: boolean;
   isPremium: boolean;
+  isActive: boolean; // Nouveau champ pour activer/désactiver le compte
 
   passwordResetOtp?: string;
   passwordResetExpires?: Date;
@@ -31,12 +32,13 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: ["client", "vendeur", "admin"], required: true , default: 'client' },
     isVerified: { type: Boolean, default: false },
     isPremium: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true }, // Par défaut, le compte est actif
     passwordResetOtp: { type: String, select: false },
     passwordResetExpires: { type: Date },
     emailConfirmationOtp: { type: String, select: false },
     emailConfirmationExpires: { type: Date },
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } } // virtuals activés
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
 // Hash automatique du mot de passe
@@ -51,9 +53,5 @@ userSchema.pre<IUser>("save", async function (next) {
 userSchema.methods.comparePassword = async function (candidatePassword: string) {
   return bcrypt.compare(candidatePassword, this.password);
 };
-
-
-
-
 
 export default mongoose.model<IUser>("User", userSchema);
