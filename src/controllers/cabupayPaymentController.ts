@@ -1,8 +1,7 @@
-// controllers/paymentController.ts
 import { Request, Response } from 'express';
 import { cabupayPaymentService } from '../services/cabupayPaymentService';
+import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
 import { Order } from '../models/Order';
-import { OrderNotificationService } from '../services/orderNotificationService';
 
 /**
  * 1. Détection de l'opérateur (Correspondent) via le numéro de téléphone
@@ -65,14 +64,26 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
         order.providerTransactionId = providerTransactionId;
       }
 
-      // 🔥 Utilisation du service de notification au lieu de l'appel direct
+      // Envoi de la notification WhatsApp au vendeur
       try {
-        const whatsappSent = await OrderNotificationService.sendWhatsAppNotification(order);
-        if (whatsappSent) {
-          console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
-        }
+        await cabupayWhatsappService.notifyNewOrder({
+          vendeurName: order.vendeurName || 'Vendeur',
+          vendeurPhone: order.vendeurPhone,
+          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
+          network: order.network,
+          units: order.units,
+          price: order.price,
+          currency: order.currency || 'FC',
+          customerPhone: order.phoneNumber,
+        });
+
+        // ✅ Mise à jour des champs WhatsApp UNIQUEMENT si l'envoi a réussi
+        order.whatsappSent = true;
+        order.whatsappSentAt = new Date();
+        
+        console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
       } catch (whatsappError: any) {
-        // L'erreur est déjà gérée dans le service, mais on log au cas où
+        // ❌ En cas d'échec, on ne met pas à jour les champs whatsappSent
         console.error(`[WhatsApp Error] Échec pour commande #${order._id}:`, whatsappError.message || whatsappError);
       }
 
@@ -129,8 +140,9 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
   }
 };
 
+
 /**
- * 4. Récupération d'un dépôt par son ID (Appel direct par le Frontend/Mobile)
+ * 3. Vérification du statut d'une transaction (Appel direct par le Frontend/Mobile)
  */
 export const getDeposit = async (req: Request, res: Response): Promise<Response> => {
   try {

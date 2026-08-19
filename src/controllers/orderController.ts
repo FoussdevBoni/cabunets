@@ -42,7 +42,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     // 2. Opérateur de paiement transmis directement par le client
     const selectedCorrespondent = correspondent.trim().toUpperCase();
 
-    // 3. Création de la commande en BDD
+    // 3. Création de la commande en BDD avec le moyen de paiement choisi
     const order = await Order.create({
       ...req.body,
       correspondent: selectedCorrespondent,
@@ -51,24 +51,15 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       status: 'PENDING',
     });
 
-    // 4. Nettoyage et formattage pour compatibilité opérateur
-    const safeClientReference = order._id.toString().slice(-18);
+    // 4. Description dynamique
+    const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
 
-    const rawDescription = description || `Achat${units || ''}${network || ''}`;
-    const cleanDescription = rawDescription
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .slice(0, 20);
-
-    const finalDescription = cleanDescription || `Cmd${safeClientReference}`;
-
-    // 5. Construction du DTO Cabupay / PawaPay
+    // 5. Construction du DTO Cabupay
     const callbackUrl = process.env.CABUPAY_CALLBACK_URL || 'https://cabunets-production.up.railway.app/api/payments/cabupay-callback';
 
     const depositDTO: CreateDepositDTO = {
       appId: process.env.CABUPAY_APP_ID || 'CABUNETS',
-      clientReference: safeClientReference,
+      clientReference: order._id.toString(),
       amount: targetAmount.toString(),
       currency: currency,
       phone: paymentPhone,
@@ -81,6 +72,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     // 6. Initiation de la demande de dépôt
     const paymentResponse = await cabupayPaymentService.createDeposit(depositDTO);
 
+    // Extraction des informations clés du retour paiement
     const paymentData = paymentResponse?.data;
     const depositId = paymentData?.depositId;
 
@@ -89,19 +81,20 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       order.depositExistence = 'FOUND';
     }
 
-    // 7. Vérification d'un rejet ou échec synchrone
+    // 7. Vérification d'un rejet ou échec synchrone (REJECTED / FAILED / success = false)
     const pawaStatus = paymentData?.status?.toUpperCase() || paymentData?.pawaResponse?.status?.toUpperCase();
     const isRejected = pawaStatus === 'REJECTED' || pawaStatus === 'FAILED' || paymentResponse?.success === false;
 
     if (isRejected) {
+      // Extraction du message d'erreur précis renvoyé par PawaPay/Cabupay
       const failureObj = paymentData?.pawaResponse?.failureReason;
       const failureMsg = failureObj?.failureMessage || paymentResponse?.message || 'Paiement rejeté par la passerelle';
       const failureCode = failureObj?.failureCode;
 
       order.status = 'FAILED';
-      order.failureCode = failureCode;
+      order.failureCode = failureCode
       order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
-      const messageError = getPawapayError(failureCode);
+      const messageError = getPawapayError(failureCode)
       await order.save();
 
       return res.status(400).json({
@@ -116,7 +109,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       });
     }
 
-    // 8. Succès de l'initialisation
+    // 8. Succès de l'initialisation (statut ACCEPTED ou PROCESSING)
     await order.save();
 
     return res.status(201).json({
