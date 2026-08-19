@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import {Offre} from '../models/Offre';
+import { Offre } from '../models/Offre';
 
 export const createOffre = async (req: Request, res: Response) => {
   try {
     const offre = await Offre.create(req.body);
-    res.status(201).json({offre});
+    res.status(201).json({ offre });
   } catch (err) {
     res.status(500).json({ error: 'Erreur lors de la création du offre', details: err });
   }

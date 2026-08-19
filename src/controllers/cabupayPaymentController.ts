@@ -1,7 +1,8 @@
+// controllers/paymentController.ts
 import { Request, Response } from 'express';
 import { cabupayPaymentService } from '../services/cabupayPaymentService';
 import { Order } from '../models/Order';
-import { orderNotificationService } from '../services/orderNotificationService';
+import { OrderNotificationService } from '../services/orderNotificationService';
 
 /**
  * 1. Détection de l'opérateur (Correspondent) via le numéro de téléphone
@@ -44,8 +45,8 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     }
 
     // 2. Idempotence : Si déjà en statut final, on ne retraite pas
-    const FINAL_STATUSES = ['COMPLETED', 'FAILED', 'DELIVERED'];
-    if (FINAL_STATUSES.includes(order.status) && order.depositId === depositId) {
+    const FINAL_STATUSES = ['COMPLETED', 'FAILED'];
+    if (FINAL_STATUSES.includes(order.status)) {
       console.log(`[Webhook Cabupay] Commande #${order._id} déjà en statut final (${order.status}). Ignoré.`);
       res.status(200).json({ success: true, message: 'Notification déjà traitée' });
       return;
@@ -64,22 +65,18 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
         order.providerTransactionId = providerTransactionId;
       }
 
-      // Sauvegarder avant l'envoi de la notification
-      await order.save();
-
-      // ✅ Envoi de la notification WhatsApp via le service atomique
+      // 🔥 Utilisation du service de notification au lieu de l'appel direct
       try {
-        const result = await orderNotificationService.sendOrderNotification(order._id.toString());
-        
-        if (result.success) {
+        const whatsappSent = await OrderNotificationService.sendWhatsAppNotification(order);
+        if (whatsappSent) {
           console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
-        } else {
-          console.log(`[WhatsApp] Notification non envoyée pour #${order._id}: ${result.reason}`);
         }
       } catch (whatsappError: any) {
+        // L'erreur est déjà gérée dans le service, mais on log au cas où
         console.error(`[WhatsApp Error] Échec pour commande #${order._id}:`, whatsappError.message || whatsappError);
       }
 
+      await order.save();
       console.log(`[Paiement Réussi] Commande #${order._id} mise à jour en COMPLETED`);
 
     } else if (status === 'FAILED') {
@@ -133,7 +130,7 @@ export const getPaymentStatus = async (req: Request, res: Response): Promise<Res
 };
 
 /**
- * 4. Récupération d'un dépôt par son ID
+ * 4. Récupération d'un dépôt par son ID (Appel direct par le Frontend/Mobile)
  */
 export const getDeposit = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -146,7 +143,7 @@ export const getDeposit = async (req: Request, res: Response): Promise<Response>
     const deposit = await cabupayPaymentService.getDeposit(depositId);
     return res.status(200).json({ success: true, data: deposit });
   } catch (error: any) {
-    console.error('[Get Deposit Error]:', error.message);
+    console.error('[Get Payment Status Error]:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
