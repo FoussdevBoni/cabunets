@@ -41,7 +41,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     // 2. Opérateur de paiement transmis directement par le client
     const selectedCorrespondent = correspondent.trim().toUpperCase();
 
-    // 3. Création de la commande en BDD avec le moyen de paiement choisi
+    // 3. Création de la commande en BDD
     const order = await Order.create({
       ...req.body,
       correspondent: selectedCorrespondent,
@@ -50,22 +50,33 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
       status: 'PENDING',
     });
 
-    // 4. Description dynamique
-    const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
+    // 4. Nettoyage et formattage pour compatibilité opérateur (Airtel COD / Vodacom)
+    // - Limite la clientReference à 18-20 caractères alphanumériques
+    const safeClientReference = order._id.toString().slice(-18);
 
-    // 5. Construction du DTO Cabupay
+    // - Supprime les espaces, accents et caractères spéciaux de la description
+    const rawDescription = description || `Achat${units || ''}${network || ''}`;
+    const cleanDescription = rawDescription
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 20);
+
+    const finalDescription = cleanDescription || `Cmd${safeClientReference}`;
+
+    // 5. Construction du DTO Cabupay / PawaPay
     const callbackUrl = process.env.CABUPAY_CALLBACK_URL || 'https://cabunets-production.up.railway.app/api/payments/cabupay-callback';
 
     const depositDTO: CreateDepositDTO = {
       appId: process.env.CABUPAY_APP_ID || 'CABUNETS',
-      clientReference: order._id.toString(),
+      clientReference: safeClientReference, // <= Raccourci pour respecter la limite Airtel RDC (<= 20 chars)
       amount: targetAmount.toString(),
       currency: currency,
       phone: paymentPhone,
       correspondent: selectedCorrespondent,
       country: country,
       callbackUrl: callbackUrl,
-      description: finalDescription,
+      description: finalDescription, // <= Chaîne épurée sans accents ni espaces
     };
 
     // 6. Initiation de la demande de dépôt
@@ -85,7 +96,6 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     const isRejected = pawaStatus === 'REJECTED' || pawaStatus === 'FAILED' || paymentResponse?.success === false;
 
     if (isRejected) {
-      // Extraction du message d'erreur précis renvoyé par PawaPay/Cabupay
       const failureObj = paymentData?.pawaResponse?.failureReason;
       const failureMsg = failureObj?.failureMessage || paymentResponse?.message || 'Paiement rejeté par la passerelle';
       const failureCode = failureObj?.failureCode;
@@ -126,7 +136,6 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
     });
   }
 };
-
 /**
  * Récupération des commandes avec filtres temporels
  */
