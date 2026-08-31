@@ -1,394 +1,430 @@
-import { useState } from "react"
-import useOrders, { ordersService } from '../../hooks/orders/useOrders'
-import { Search, ChevronLeft, Eye, X, Copy, Check, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react"
-import { Order } from "../../utils/database"
-import { formatDate } from "../../functions/formatDate"
-import useToken from "../../hooks/auth/useToken"
+// pages/OrdersPage.tsx
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Search, Filter, X, Eye, RefreshCw, Send, MessageCircle, ExternalLink, Calendar } from "lucide-react";
+import PageLitLayout from "../../layouts/PageListLayout";
+import DeleteConfirmationModal from "../../components/ui/DeleteConfirmationModal";
+import MenuModal, { Menu } from "../../components/ui/MenuModal";
+import useOrders, { ordersService } from "../../hooks/orders/useOrders";
+import { Order } from "../../utils/database";
+import { alertSuccess, alertError } from "../../helpers/alertError";
+import useToken from "../../hooks/auth/useToken";
+import OrdersList from "../../components/features/orders/OrdersList";
 
 export default function OrdersPage() {
-  const { data: orders, loading: ordersLoading, refresh } = useOrders({})
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [copiedField, setCopiedField] = useState<string | null>(null)
-  const {token}= useToken()
-  // Tracking des IDs de commande en cours de traitement manuel
-  const [processingIds, setProcessingIds] = useState<Record<string, boolean>>({})
+  const navigate = useNavigate();
+  const { token } = useToken();
+  const { data: orders, loading, refresh } = useOrders({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [processingIds, setProcessingIds] = useState<Record<string, boolean>>({});
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [showTodayOnly, setShowTodayOnly] = useState(true);
 
-  // Appel direct à votre endpoint de synchro backend avec mise à jour UI
+  // Statistiques
+  const stats = useMemo(() => {
+    const ordersList = orders || [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todayOrders = ordersList.filter(o => {
+      const orderDate = o.createdAt ? new Date(o.createdAt) : null;
+      if (!orderDate) return false;
+      orderDate.setHours(0, 0, 0, 0);
+      return orderDate.getTime() === today.getTime();
+    });
+
+    const totalCA = todayOrders
+      .filter(o => o.status?.toUpperCase() === "COMPLETED" || o.status?.toUpperCase() === "DELIVERED")
+      .reduce((sum, o) => sum + (o.price || 0), 0);
+
+    return {
+      total: ordersList.length,
+      pending: ordersList.filter(o => o.status?.toUpperCase() === "PENDING").length,
+      completed: ordersList.filter(o => o.status?.toUpperCase() === "COMPLETED").length,
+      delivered: ordersList.filter(o => o.status?.toUpperCase() === "DELIVERED").length,
+      failed: ordersList.filter(o => o.status?.toUpperCase() === "FAILED").length,
+      whatsappPending: ordersList.filter(o => o.status?.toUpperCase() === "COMPLETED" && !o.whatsappSent).length,
+      todayOrders: todayOrders.length,
+      todayCA: totalCA,
+    };
+  }, [orders]);
+
+  // Filtrage
+  const filteredOrders = useMemo(() => {
+    let result = orders || [];
+
+    if (showTodayOnly) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      result = result.filter(o => {
+        const orderDate = o.createdAt ? new Date(o.createdAt) : null;
+        if (!orderDate) return false;
+        orderDate.setHours(0, 0, 0, 0);
+        return orderDate.getTime() === today.getTime();
+      });
+    }
+
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      result = result.filter(
+        (o) =>
+          (o.id || o._id || "").toLowerCase().includes(searchLower) ||
+          (o.depositId && o.depositId.toLowerCase().includes(searchLower)) ||
+          (o.phoneNumber && o.phoneNumber.includes(searchTerm)) ||
+          (o.vendeurName && o.vendeurName.toLowerCase().includes(searchLower)) ||
+          (o.vendeurPhone && o.vendeurPhone.includes(searchTerm)) ||
+          (o.network && o.network.toLowerCase().includes(searchLower))
+      );
+    }
+
+    if (selectedStatus) {
+      result = result.filter((o) => o.status?.toUpperCase() === selectedStatus.toUpperCase());
+    }
+
+    return result;
+  }, [orders, searchTerm, selectedStatus, showTodayOnly]);
+
+  // Actions
   const handleTraitOrder = async (orderId: string) => {
-    if (!orderId || processingIds[orderId]) return
-
-    setProcessingIds(prev => ({ ...prev, [orderId]: true }))
-
+    if (!orderId || processingIds[orderId]) return;
+    setProcessingIds(prev => ({ ...prev, [orderId]: true }));
     try {
-      const updatedOrder = await ordersService.traitOrder(token , orderId)
-      
-      // Si la commande consultée dans le modal est celle qui est mise à jour
-      if (selectedOrder && (selectedOrder.id === orderId || selectedOrder._id === orderId)) {
-        setSelectedOrder(prev => prev ? { ...prev, ...updatedOrder?.order } : null)
+      const data = await ordersService.traitOrder(token, orderId);
+      if (data?.status === 'COMPLETED') {
+        alertSuccess("Commande traitée avec succès");
       }
-
-      // Rafraîchir la liste si la fonction est fournie par le hook
       if (typeof refresh === "function") {
-        await refresh()
+        await refresh();
+      }
+      if (selectedOrder && (selectedOrder.id === orderId || selectedOrder._id === orderId)) {
+        setSelectedOrder(null);
       }
     } catch (error) {
-      console.error("Erreur synchro Cabupay:", error)
+      console.error(error);
+      alertError("Erreur lors du traitement");
     } finally {
-      setProcessingIds(prev => ({ ...prev, [orderId]: false }))
+      setProcessingIds(prev => ({ ...prev, [orderId]: false }));
     }
-  }
+  };
 
-  if (ordersLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
-  const copyToClipboard = (text: string, fieldName: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedField(fieldName)
-    setTimeout(() => setCopiedField(null), 2000)
-  }
-
-  const filteredOrders = orders?.filter(order => {
-    const searchLower = search.toLowerCase()
-    const orderIdStr = order.id || order._id || ""
-    
-    const matchesSearch = 
-      (orderIdStr && orderIdStr.toLowerCase().includes(searchLower)) ||
-      (order.depositId && order.depositId.toLowerCase().includes(searchLower)) ||
-      (order.providerTransactionId && order.providerTransactionId.toLowerCase().includes(searchLower)) ||
-      (order.phoneNumber && order.phoneNumber.includes(search)) ||
-      (order.paymentPhone && order.paymentPhone.includes(search)) ||
-      (order.contactPhone && order.contactPhone.includes(search)) ||
-      (order.vendeurName && order.vendeurName.toLowerCase().includes(searchLower)) ||
-      (order.vendeurPhone && order.vendeurPhone.includes(search)) ||
-      (order.network && order.network.toLowerCase().includes(searchLower))
-    
-    const currentStatus = order.status?.toUpperCase()
-    const filterStatus = statusFilter.toUpperCase()
-
-    let matchesStatus = false
-    if (filterStatus === "ALL") {
-      matchesStatus = true
-    } else if (filterStatus === "FAILED") {
-      matchesStatus = currentStatus === "FAILED"
-    } else if (filterStatus === "COMPLETED") {
-      matchesStatus = currentStatus === "COMPLETED"
-    } else if (filterStatus === "PENDING") {
-      matchesStatus = currentStatus !== "COMPLETED" && currentStatus !== "FAILED"
+  const handleSendPendingWhatsApp = async () => {
+    if (sendingWhatsApp) return;
+    setSendingWhatsApp(true);
+    try {
+      const data = await ordersService.sendPendingWhatsApp(token);
+      alertSuccess(`${data.sent} messages envoyés, ${data.failed} échoués`);
+      if (typeof refresh === "function") {
+        await refresh();
+      }
+    } catch (error) {
+      console.error(error);
+      alertError("Erreur lors de l'envoi");
+    } finally {
+      setSendingWhatsApp(false);
     }
-    
-    return matchesSearch && matchesStatus
-  }) || []
+  };
 
-  const getStatusColor = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "bg-green-100 text-green-800"
-    if (normalized === "FAILED") return "bg-red-100 text-red-800"
-    return "bg-yellow-100 text-yellow-800"
-  }
+  const handleDelete = async () => {
+    if (!orderToDelete) return;
+    setIsDeleting(true);
+    try {
+      const id = orderToDelete.id || orderToDelete._id || "";
+      const response = await fetch(`/api/orders/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setOrderToDelete(null);
+        alertSuccess("Commande supprimée");
+        if (typeof refresh === "function") {
+          await refresh();
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      alertError("Erreur lors de la suppression");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
-  const getStatusText = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "Traitée"
-    if (normalized === "FAILED") return "Échouée"
-    return "En attente"
-  }
+  const handleDeleteMany = async () => {
+    if (!itemsToDelete || itemsToDelete.length === 0) return;
+    try {
+      const promises = itemsToDelete.map(id =>
+        fetch(`/api/orders/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      );
+      await Promise.all(promises);
+      setItemsToDelete(null);
+      alertSuccess(`${itemsToDelete.length} commandes supprimées`);
+      if (typeof refresh === "function") {
+        await refresh();
+      }
+    } catch (error) {
+      console.error(error);
+      alertError("Erreur lors de la suppression multiple");
+    }
+  };
+
+  const clearFilters = () => {
+    setSelectedStatus("");
+    setSearchTerm("");
+  };
+
+  const hasActiveFilters = selectedStatus || searchTerm;
+
+  const getActionsMenu = (order: Order): Menu[] => {
+    const currentId = order.id || order._id || "";
+    const isPending = order.status?.toUpperCase() !== "COMPLETED" && 
+                     order.status?.toUpperCase() !== "FAILED" && 
+                     order.status?.toUpperCase() !== "DELIVERED";
+
+    const actions: Menu[] = [];
+
+    if (isPending) {
+      actions.push({
+        label: "Traiter la commande",
+        icon: RefreshCw,
+        onClick: () => handleTraitOrder(currentId),
+      });
+    }
+
+    if (order.depositId) {
+      actions.push({
+        label: "Voir le dépôt",
+        icon: ExternalLink,
+        onClick: () => navigate(`/admin/deposit?depositId=${order.depositId}`),
+      });
+    }
+
+    actions.push({
+      label: "Supprimer",
+      icon: X,
+      onClick: () => setOrderToDelete(order),
+    });
+
+    return actions;
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 bg-white border-b z-10">
-        <div className="px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => window.history.back()}
-              className="p-1.5 hover:bg-gray-100 rounded-lg transition"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+    <PageLitLayout title="Gestion des commandes">
+      <div className="px-6 py-4 bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-base font-medium">Toutes les commandes</h1>
-              <p className="text-xs text-gray-500">{filteredOrders.length} commande{filteredOrders.length !== 1 ? 's' : ''}</p>
+              <h1 className="text-2xl font-bold text-gray-900">Commandes</h1>
+              <p className="text-sm text-gray-500 mt-1">Gérez toutes les commandes</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSendPendingWhatsApp}
+                disabled={sendingWhatsApp || stats.whatsappPending === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition ${
+                  sendingWhatsApp || stats.whatsappPending === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                <Send size={18} />
+                <span className="hidden sm:inline">WhatsApp</span>
+                {stats.whatsappPending > 0 && (
+                  <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs font-bold">
+                    {stats.whatsappPending}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="p-4">
-        {/* Filtres */}
-        <div className="mb-6 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          {/* Stats */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 mt-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+              <p className="text-xs text-blue-700/70">Total</p>
+              <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
+            </div>
+            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4">
+              <p className="text-xs text-yellow-700/70">En attente</p>
+              <p className="text-2xl font-bold text-yellow-700">{stats.pending}</p>
+            </div>
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4">
+              <p className="text-xs text-indigo-700/70">Payées</p>
+              <p className="text-2xl font-bold text-indigo-700">{stats.completed}</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4">
+              <p className="text-xs text-green-700/70">Livrées</p>
+              <p className="text-2xl font-bold text-green-700">{stats.delivered}</p>
+            </div>
+            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4">
+              <p className="text-xs text-red-700/70">Échouées</p>
+              <p className="text-2xl font-bold text-red-700">{stats.failed}</p>
+            </div>
+          </div>
+
+          {/* CA du jour */}
+          <div className="mt-4 p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-500/20 rounded-lg">
+                  <span className="text-2xl">💰</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-emerald-800">Chiffre d'affaires du jour</p>
+                  <p className="text-xs text-emerald-600/70">
+                    {showTodayOnly ? 'Commandes du jour' : 'Toutes les commandes'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-emerald-700">
+                  {stats.todayCA.toLocaleString()} FCFA
+                </p>
+                <p className="text-xs text-emerald-600">
+                  {stats.todayOrders} commande{stats.todayOrders > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Recherche */}
+          <div className="relative mt-6">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Rechercher par ID, depositId, téléphone, vendeur, réseau..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition text-sm"
+              placeholder="Rechercher une commande..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/50"
             />
           </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition text-sm"
-          >
-            <option value="all">Tous les statuts</option>
-            <option value="PENDING">En attente</option>
-            <option value="COMPLETED">Traitées</option>
-            <option value="FAILED">Échouées</option>
-          </select>
-        </div>
+          {/* Filtres */}
+          <div className="mt-4 bg-gray-50 rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-gray-700">Filtres</h3>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1"
+                >
+                  <X size={14} /> Effacer tout
+                </button>
+              )}
+            </div>
 
-        {/* Tableau */}
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl border p-8 text-center">
-            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="font-medium text-gray-900 mb-2">
-              {search || statusFilter !== "all" 
-                ? "Aucune commande correspondante" 
-                : "Aucune commande"}
-            </h3>
-            <p className="text-gray-600 text-sm">
-              {search || statusFilter !== "all" 
-                ? "Modifiez vos critères de recherche" 
-                : "Aucune commande n'a été passée"}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client & Paiement
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Vendeur
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Réseau
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredOrders.map((order) => {
-                    const currentId = order.id || order._id || ""
-                    const isProcessing = processingIds[currentId]
-                    const isPending = order.status?.toUpperCase() !== "COMPLETED" && order.status?.toUpperCase() !== "FAILED"
-
-                    return (
-                      <tr key={currentId || Math.random().toString()} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm">
-                            <div className="font-medium text-gray-900">{order.phoneNumber}</div>
-                            {order.paymentPhone && (
-                              <div className="text-gray-500 text-xs">Paiement: {order.paymentPhone}</div>
-                            )}
-                            {order.depositId && (
-                              <div className="text-[11px] font-mono text-blue-600 truncate max-w-[150px]">
-                                Dep: {order.depositId}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{order.vendeurName}</div>
-                          <div className="text-gray-500 text-xs">{order.vendeurPhone}</div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="text-sm">
-                            <div className="font-medium text-gray-900">{order.network}</div>
-                            <div className="text-gray-500 text-xs">
-                              {order.units} unité{order.units > 1 ? 's' : ''} • {order.price} {order.currency}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                            {getStatusText(order.status)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                          {order.createdAt ? formatDate(order.createdAt) : "-"}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Bouton de Traitement Manuel */}
-                            {isPending && (
-                              <button
-                                onClick={() => handleTraitOrder(currentId)}
-                                disabled={isProcessing}
-                                className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition inline-flex items-center gap-1 text-xs font-medium border border-blue-200 disabled:opacity-50"
-                                title="Vérifier et traiter auprès de Cabupay"
-                              >
-                                <RefreshCw className={`h-3.5 w-3.5 ${isProcessing ? "animate-spin" : ""}`} />
-                                <span className="hidden sm:inline">Traiter</span>
-                              </button>
-                            )}
-
-                            {/* Bouton Inspecter */}
-                            <button
-                              onClick={() => setSelectedOrder(order)}
-                              className="p-1.5 hover:bg-gray-100 text-gray-600 rounded-lg transition inline-flex items-center gap-1 text-xs font-medium"
-                              title="Voir les détails techniques"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="">Tous</option>
+                  <option value="PENDING">En attente</option>
+                  <option value="COMPLETED">Payée</option>
+                  <option value="DELIVERED">Livrée</option>
+                  <option value="FAILED">Échouée</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Période</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowTodayOnly(true)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                      showTodayOnly
+                        ? 'bg-primary text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Aujourd'hui
+                  </button>
+                  <button
+                    onClick={() => setShowTodayOnly(false)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                      !showTodayOnly
+                        ? 'bg-primary text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    Toutes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="px-6 py-8 max-w-7xl mx-auto">
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <>
+            {filteredOrders.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500">
+                  {showTodayOnly ? "Aucune commande pour aujourd'hui" : "Aucune commande trouvée"}
+                </p>
+              </div>
+            )}
+            <OrdersList
+              orders={filteredOrders}
+              processingIds={processingIds}
+              onTraitOrder={handleTraitOrder}
+              onAction={(order) => setSelectedOrder(order)}
+              onSelectOrders={(selected) => setItemsToDelete(selected.map((o) => o.id || o._id || ""))}
+              selectable={false}
+              selectActions={[
+                {
+                  label: "Supprimer",
+                  onClick: (selected) => setItemsToDelete(selected.map((o) => o.id || o._id || "")),
+                  className: "bg-red-600 text-white",
+                },
+              ]}
+            />
+          </>
         )}
       </div>
 
-      {/* Modal d'inspection technique */}
+      {/* Menu modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
-            <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-              <div>
-                <h2 className="text-base font-bold text-gray-900">Détails de la commande</h2>
-                <p className="text-xs font-mono text-gray-500">ID: {selectedOrder.id || selectedOrder._id || "N/A"}</p>
-              </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="p-1.5 hover:bg-gray-100 rounded-full transition"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              {/* Statut & Action synchro */}
-              <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg border text-xs">
-                <div>
-                  <span className="text-gray-500 block">Statut</span>
-                  <span className={`inline-block px-2 py-0.5 rounded-full font-medium mt-1 ${getStatusColor(selectedOrder.status)}`}>
-                    {getStatusText(selectedOrder.status)}
-                  </span>
-                </div>
-                
-                {selectedOrder.status?.toUpperCase() !== "COMPLETED" && selectedOrder.status?.toUpperCase() !== "FAILED" ? (
-                  <button
-                    onClick={() => handleTraitOrder(selectedOrder.id || selectedOrder._id || "")}
-                    disabled={processingIds[selectedOrder.id || selectedOrder._id || ""]}
-                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${processingIds[selectedOrder.id || selectedOrder._id || ""] ? "animate-spin" : ""}`} />
-                    Forcer le traitement
-                  </button>
-                ) : (
-                  <div className="text-right">
-                    <span className="text-gray-500 block">Créée le</span>
-                    <span className="font-medium text-gray-800">
-                      {selectedOrder.createdAt ? formatDate(selectedOrder.createdAt) : "-"}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {selectedOrder.status?.toUpperCase() === "FAILED" && selectedOrder.failureReason && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-xs">
-                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-red-800">Motif du rejet :</span>
-                    <p className="font-mono text-red-700 mt-1 break-all bg-white p-2 rounded border border-red-100">
-                      {selectedOrder.failureReason}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* IDs et Passerelle */}
-              <div className="space-y-2 bg-gray-50 p-3 rounded-lg border font-mono text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Deposit ID (Cabupay):</span>
-                  <div className="flex items-center gap-1 font-bold text-gray-900">
-                    <span>{selectedOrder.depositId || "-"}</span>
-                    {selectedOrder.depositId && (
-                      <button onClick={() => copyToClipboard(selectedOrder.depositId!, "depositId")} className="p-1 hover:bg-gray-200 rounded">
-                        {copiedField === "depositId" ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-gray-500" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-gray-500">Provider Trans ID:</span>
-                  <div className="flex items-center gap-1 font-bold text-gray-900">
-                    <span>{selectedOrder.providerTransactionId || "-"}</span>
-                    {selectedOrder.providerTransactionId && (
-                      <button onClick={() => copyToClipboard(selectedOrder.providerTransactionId!, "providerTx")} className="p-1 hover:bg-gray-200 rounded">
-                        {copiedField === "providerTx" ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-gray-500" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-gray-500">Correspondent:</span>
-                  <span className="font-bold text-blue-600">{selectedOrder.correspondent || "-"}</span>
-                </div>
-
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-gray-500">Offer ID:</span>
-                  <span className="text-gray-800">{selectedOrder.offerId}</span>
-                </div>
-              </div>
-
-              {/* Téléphones */}
-              <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                <div className="p-2 bg-gray-50 rounded border">
-                  <span className="text-gray-500 block text-[10px]">Client</span>
-                  <span className="font-bold text-gray-900">{selectedOrder.phoneNumber}</span>
-                </div>
-                <div className="p-2 bg-gray-50 rounded border">
-                  <span className="text-gray-500 block text-[10px]">Paiement</span>
-                  <span className="font-bold text-gray-900">{selectedOrder.paymentPhone || "-"}</span>
-                </div>
-                <div className="p-2 bg-gray-50 rounded border">
-                  <span className="text-gray-500 block text-[10px]">Contact</span>
-                  <span className="font-bold text-gray-900">{selectedOrder.contactPhone || "-"}</span>
-                </div>
-              </div>
-
-              {/* Vendeur & Transaction */}
-              <div className="text-xs space-y-2 bg-gray-50 p-3 rounded-lg border">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Vendeur:</span>
-                  <span className="font-medium text-gray-900">{selectedOrder.vendeurName} ({selectedOrder.vendeurPhone})</span>
-                </div>
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-gray-500">Réseau & Montant:</span>
-                  <span className="font-medium text-gray-900">{selectedOrder.network} — {selectedOrder.price} {selectedOrder.currency} ({selectedOrder.units} un.)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MenuModal
+          title={`Gérer la Commande`}
+          isOpen={!!selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          icon={null}
+          menu={getActionsMenu(selectedOrder)}
+        />
       )}
-    </div>
-  )
+
+      {/* Modals suppression */}
+      <DeleteConfirmationModal
+        isOpen={!!orderToDelete}
+        onClose={() => setOrderToDelete(null)}
+        onConfirm={handleDelete}
+        title="Supprimer la commande"
+        message={`Supprimer la commande de "${orderToDelete?.vendeurName}" ?`}
+        confirmText={isDeleting ? "Suppression..." : "Supprimer"}
+      />
+
+      <DeleteConfirmationModal
+        isOpen={!!itemsToDelete && itemsToDelete.length > 0}
+        onClose={() => setItemsToDelete(null)}
+        onConfirm={handleDeleteMany}
+        title="Suppression multiple"
+        message={`Supprimer ${itemsToDelete?.length} commandes ?`}
+      />
+    </PageLitLayout>
+  );
 }

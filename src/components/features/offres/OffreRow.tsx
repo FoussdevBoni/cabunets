@@ -1,5 +1,5 @@
-import { Smartphone, DollarSign, Zap, Clock, Shield, ArrowRight } from "lucide-react"
-import { Link, useNavigate } from "react-router-dom"
+import { Clock, ArrowRight } from "lucide-react"
+import {  useNavigate } from "react-router-dom"
 import { Offre } from "../../../utils/database"
 
 interface OffreRowProps {

@@ -1,18 +1,20 @@
 export type Time = 'year' | 'month' | 'week' | 'day'
-export type UserRole = 'company' | 'employee'
+export type UserRole = 'vendeur' | 'admin' | 'client'
 
 
-export type Profile = Vendeur | Admin
+export type Profile = Vendeur | Admin | Client
 
 export interface UserBase {
   id?: string;
+  _id?: string
   email: string;
   username: string,
   avatar: string
-  role: 'vendeur' | 'admin',
+  role: 'vendeur' | 'admin' | 'client',
 }
 export interface User extends UserBase {
-
+  isVerified?: boolean,
+  isActive?: boolean
   profile: Profile
   createdAt?: Date;
   updatedAt?: Date;
@@ -41,8 +43,8 @@ export interface Admin {
 }
 
 
-
 export interface Vendeur {
+  _id?: string
   id?: string
   whatsappNumber: string;
   advantage: string;
@@ -60,6 +62,19 @@ export interface Vendeur {
   paymentAmount: number;
   availability: string;
 
+  // Nouveaux champs pour les horaires
+  openingTime?: string;    // Format "HH:mm" (ex: "08:00")
+  closingTime?: string;    // Format "HH:mm" (ex: "18:00")
+  isOnline?: boolean;      // Statut en ligne (calculé ou manuel)
+
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+export interface Client {
+  id: string;
+  whatsappNumber: string;
+  rechargePhone?: string;
+  address?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -90,6 +105,7 @@ export interface Order {
   network: string;                // Réseau de la recharge (ex: MTN, Moov, Celtiis, Vodacom...)
   correspondent?: string;         // Identifiant opérateur Cabupay (ex: MTN_MOMO_BEN)
   offerId: string;
+  clientId: string;
   vendeurId: string;
   vendeurName: string;
   vendeurPhone: string;
@@ -97,7 +113,13 @@ export interface Order {
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
   status: "PENDING" | "COMPLETED" | "FAILED";
+  depositExistence?: 'FOUND' | 'NOT_FOUND';
+  whatsappSent?: boolean;
+  whatsappSentAt?: Date;
+  deliveredAt?: Date;
+  failureCode?: string
   createdAt?: Date;
+
   updatedAt?: Date;
 }
 

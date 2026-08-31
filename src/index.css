@@ -2,3 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Pour que le tableau soit scrollable sur mobile */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Cacher le scrollbar sur mobile (optionnel) */
+.table-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}

@@ -1,6 +1,6 @@
 import { FC } from "react"
 import { Smartphone, PlusCircle } from "lucide-react"
-import OffreRow from "../items/OffreRow"
+import OffreRow from "./OffreRow"
 import { Offre } from "../../../utils/database"
 
 const NETWORK_CONFIG = {

@@ -4,7 +4,7 @@ import { API_URL } from "../utils/api";
 export interface QueryFilters { day?: boolean; week?: boolean; month?: boolean; year?: boolean; [key: string]: any; }
 
 export const dataService = <T extends { id?: string }>(endpoint: string) => ({
-  async create(data: T, token?: string): Promise<T & { id: string }> {
+  async create(data: Partial<T>, token?: string): Promise<T & { id: string }> {
     try {
       const res = await axios.post(`${API_URL}/${endpoint}`, data, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,

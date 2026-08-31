@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Plus, Search } from "lucide-react"
 import useOffres from "../../hooks/offres/useOffres"
 import { useAuth } from "../../hooks/auth/useAuth"
-import { OffresTable } from "../../components/common/lists/OffresTable"
+import { OffresTable } from "../../components/features/offres/OffresTable"
 
 export default function OffresPage() {
   const navigate = useNavigate()

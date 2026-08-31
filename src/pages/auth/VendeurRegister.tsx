@@ -12,7 +12,10 @@ import {
   EyeOff,
   Sparkles,
   LogOut,
-  ArrowRight
+  ArrowRight,
+  AlertCircle,
+  Sun,
+  Moon
 } from "lucide-react"
 import { authService } from "../../services/authService"
 import { User, Vendeur } from "../../utils/database"
@@ -39,6 +42,9 @@ export default function VendeurRegister() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string>("")
   const { saveToken } = useToken()
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  const [termsError, setTermsError] = useState<string>("")
+  
   const [form, setForm] = useState({
     email: '',
     username: '',
@@ -52,7 +58,9 @@ export default function VendeurRegister() {
       Orange: false,
     },
     paymentAmount: 0,
-    availability: ""
+    availability: "",
+    openingTime: "08:00",
+    closingTime: "18:00"
   })
 
   const handleNetworkToggle = (network: string) => {
@@ -68,9 +76,16 @@ export default function VendeurRegister() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setTermsError("")
 
     if (!form.whatsappNumber || !form.email || !form.password || !form.username) {
       setError("Veuillez remplir tous les champs obligatoires")
+      return
+    }
+
+    // ✅ Vérification de l'acceptation des conditions
+    if (!acceptTerms) {
+      setTermsError("Vous devez accepter les conditions d'utilisation et la politique de confidentialité")
       return
     }
 
@@ -86,6 +101,8 @@ export default function VendeurRegister() {
         photoUrls: [],
         paymentAmount: form.paymentAmount,
         availability: form.availability,
+        openingTime: form.openingTime,
+        closingTime: form.closingTime,
         createdAt: new Date(),
         updatedAt: new Date()
       }
@@ -104,11 +121,7 @@ export default function VendeurRegister() {
         const user = await authService.getUserProfile(registerRes.token)
         setUser(user)
         navigate('/vendeur/upload-photos')
-
       }
-
-
-
 
     } catch (error: any) {
       console.error("Erreur lors de l'inscription:", error)
@@ -148,7 +161,7 @@ export default function VendeurRegister() {
 
           <div className="space-y-3">
             <button
-              onClick={() => navigate(hasPhotos ? 'vendeur/overview' : '/vendeur/upload-photos')}
+              onClick={() => navigate(hasPhotos ? '/vendeur/overview' : '/vendeur/upload-photos')}
               className="w-full bg-primary text-white px-4 py-3 rounded-xl font-medium hover:bg-primary/90 transition flex items-center justify-center gap-2"
             >
               <ArrowRight className="h-5 w-5" />
@@ -171,8 +184,6 @@ export default function VendeurRegister() {
     )
   }
 
-
-
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -193,8 +204,9 @@ export default function VendeurRegister() {
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Erreur */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -304,6 +316,59 @@ export default function VendeurRegister() {
             </div>
           </div>
 
+          {/* Section Horaires d'ouverture */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-100">
+              Horaires d'ouverture
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Heure d'ouverture */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Sun className="inline h-4 w-4 mr-1 text-yellow-500" />
+                  Heure d'ouverture
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="time"
+                    value={form.openingTime}
+                    onChange={(e) => setForm(prev => ({ ...prev, openingTime: e.target.value }))}
+                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Format: HH:mm (ex: 08:00)</p>
+              </div>
+
+              {/* Heure de fermeture */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Moon className="inline h-4 w-4 mr-1 text-indigo-500" />
+                  Heure de fermeture
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="time"
+                    value={form.closingTime}
+                    onChange={(e) => setForm(prev => ({ ...prev, closingTime: e.target.value }))}
+                    className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Format: HH:mm (ex: 18:00)</p>
+              </div>
+            </div>
+
+            {/* Indicateur de statut en temps réel */}
+            <div className="mt-4 bg-gray-50 rounded-lg p-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-sm font-medium text-gray-700">
+                🟢 Vous serez en ligne de {form.openingTime} à {form.closingTime}
+              </span>
+            </div>
+          </div>
+
           {/* Section Réseaux */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-100">
@@ -382,15 +447,64 @@ export default function VendeurRegister() {
             </div>
           </div>
 
+          {/* ✅ Acceptation des conditions */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5">
+                  <input
+                    type="checkbox"
+                    id="acceptTerms"
+                    checked={acceptTerms}
+                    onChange={(e) => {
+                      setAcceptTerms(e.target.checked)
+                      if (e.target.checked) {
+                        setTermsError("")
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="acceptTerms" className="text-sm text-gray-700 cursor-pointer">
+                    J'accepte les{' '}
+                    <a href="/terms" target="_blank" className="text-primary hover:underline font-medium">
+                      Conditions d'utilisation
+                    </a>
+                    {' '}et la{' '}
+                    <a href="/privacy" target="_blank" className="text-primary hover:underline font-medium">
+                      Politique de confidentialité
+                    </a>
+                  </label>
+                  {termsError && (
+                    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {termsError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Message informatif */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-2">
+                <Check className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700">
+                  En créant un compte vendeur, vous acceptez nos conditions et notre politique de confidentialité. 
+                  Vos données sont protégées et utilisées conformément à notre charte.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Bouton de soumission */}
           <div className="flex justify-center pt-6">
             <button
               type="submit"
               disabled={loading}
-              className="bg-primary text-white px-12 py-4 rounded-xl font-semibold text-lg hover:bg-primary/90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary text-white px-12 py-4 rounded-xl font-semibold text-lg hover:bg-primary/90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed w-full"
             >
               {loading ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Inscription en cours...
                 </div>

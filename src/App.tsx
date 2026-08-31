@@ -1,5 +1,4 @@
-
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import AdminNav from './navigation/AdminNav';
 import ProtectedRoute from './components/wrappers/ProtectedRoutes';
 import VendeurNav from './navigation/VendeurNav';
@@ -20,96 +19,92 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import Redirect from './pages/auth/RedirectPage';
 import { initCustomAlerts } from './helpers/alertError';
 import OrderPendingPage from './pages/public/OrderPendingPage';
-
+import ClientRegister from './pages/auth/RegisterPage';
+import ClientNav from './navigation/ClientNav';
+import TermsPage from './pages/public/TermsPage';
+import PrivacyPage from './pages/public/PrivacyPage';
+import MaintenancePage from './pages/public/MaintenancePage';
 
 function App() {
+  // ACTIVER LA MAINTENANCE : mettre à true
+  // DÉSACTIVER LA MAINTENANCE : mettre à false
+  const MAINTENANCE_MODE = false;
 
   // Initialiser le remplacement des alerts
   initCustomAlerts();
 
   useEffect(() => {
-    setupErrorHandler()
-  }, [])
+    setupErrorHandler();
+  }, []);
 
+  // Si mode maintenance actif, rediriger toutes les routes vers /maintenance
+  if (MAINTENANCE_MODE) {
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/maintenance" element={<MaintenancePage />} />
+          <Route path="*" element={<Navigate to="/maintenance" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    );
+  }
+
+  // Application normale (sans maintenance)
   return (
-
     <ErrorBoundary>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/offres" element={<OffresPage />} />
+        <Route path="/vendeur-details" element={<VendeurDetailsPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/order-pending" element={<OrderPendingPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        
+        {/* Auth */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<ClientRegister />} />
+        <Route path="/vendeur-register" element={<VendeurRegister />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/redirect" element={<Redirect />} />
 
+        {/* Navigation Admin */}
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminNav />
+            </ProtectedRoute>
+          }
+        />
 
+        {/* Navigation Vendeur */}
+        <Route
+          path="/vendeur/*"
+          element={
+            <ProtectedRoute allowedRoles={['vendeur']}>
+              <VendeurNav />
+            </ProtectedRoute>
+          }
+        />
 
+        {/* Navigation Client */}
+        <Route
+          path="/client/*"
+          element={
+            <ProtectedRoute allowedRoles={['client']}>
+              <ClientNav />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/" element={
-          <LandingPage />
-        } />
-        <Route path="/offres" element={
-          <OffresPage />
-        } />
-        <Route path="/vendeur-details" element={
-          <VendeurDetailsPage />
-        } />
-
-        <Route path="/checkout" element={
-          <CheckoutPage />
-        } />
-
-         <Route path="/order-pending" element={
-          <OrderPendingPage />
-        } />
-
-        <Route path="/contact" element={
-          <ContactPage />
-        } />
-
-        <Route path="/about" element={
-          <AboutPage />
-        } />
-        <Route path="/services" element={
-          <ServicesPage />
-        } />
-
-        {/** Auth */}
-        <Route path="/login" element={
-          <LoginPage />
-        } />
-        <Route path="/vendeur-register" element={
-          <VendeurRegister />
-        } />
-        <Route path="/forgot-password" element={
-          <ForgotPasswordPage />
-        } />
-
-
-
-
-
-        <Route path="/redirect" element={
-          <Redirect />
-        } />
-
-        {/**  Navigation Admin* */}
-        <Route path="/admin/*" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminNav />
-          </ProtectedRoute>
-        } />
-
-        {/**  Navigation vendeur* */}
-
-
-        <Route path="/vendeur/*" element={
-          <ProtectedRoute allowedRoles={['vendeur']}>
-            <VendeurNav />
-          </ProtectedRoute>
-        } />
-
-
-
+        {/* Route 404 */}
         <Route path="*" element={<NotFoundPage />} />
-
       </Routes>
     </ErrorBoundary>
-
   );
 }
 

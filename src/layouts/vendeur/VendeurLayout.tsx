@@ -6,7 +6,8 @@ import {
     User,
     Key,
     ChevronDown,
-    LogOut
+    LogOut,
+    OutdentIcon
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/auth/useAuth';
@@ -27,9 +28,9 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    
+
     const dropdownRef = useRef<HTMLDivElement>(null);
-    
+
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -40,6 +41,8 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
         if (path.includes('/overview')) return 'overview';
         if (path.includes('/orders')) return 'orders';
         if (path.includes('/offres')) return 'offres';
+        if (path.includes('/retraits')) return 'retraits';
+
         return 'dashboard';
     };
 
@@ -67,6 +70,13 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
             iconActive: FileText,
             route: '/offres'
         },
+        {
+            id: 'retraits',
+            title: 'Retraits',
+            icon: OutdentIcon,
+            iconActive: FileText,
+            route: '/retraits'
+        }
     ];
 
     // Détection améliorée de la taille d'écran
@@ -133,7 +143,7 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                 {getInitials(user?.username || "")}
                             </span>
                         </button>
-                        
+
                         {/* Dropdown Menu Mobile */}
                         {isDropdownOpen && (
                             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -188,8 +198,8 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                             key={item.id}
                             onClick={() => handleNavClick(item.route)}
                             className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[60px] ${isActive
-                                    ? 'text-primary bg-primary/10'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                ? 'text-primary bg-primary/10'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                 }`}
                         >
                             <IconComponent className="w-5 h-5 mb-1" />
@@ -222,8 +232,8 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                     key={item.id}
                                     onClick={() => handleNavClick(item.route)}
                                     className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[70px] ${isActive
-                                            ? 'text-primary bg-primary/10'
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                        ? 'text-primary bg-primary/10'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                         }`}
                                 >
                                     <IconComponent className="w-5 h-5 mb-1" />
@@ -247,7 +257,7 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                 </div>
                                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            
+
                             {/* Dropdown Menu Tablet */}
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -258,7 +268,7 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                             </p>
                                             <p className="text-xs text-gray-500 mt-1">Vendeur connecté</p>
                                         </div>
-                                        
+
                                         <div className="py-2">
                                             <button
                                                 onClick={() => {
@@ -281,9 +291,9 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                                 Changer mot de passe
                                             </button>
                                         </div>
-                                        
+
                                         <div className="border-t border-gray-100 my-1"></div>
-                                        
+
                                         <button
                                             onClick={handleLogout}
                                             className="flex items-center w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50"
@@ -323,8 +333,8 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                         key={item.id}
                                         onClick={() => handleNavClick(item.route)}
                                         className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${isActive
-                                                ? 'text-primary bg-primary/10'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                            ? 'text-primary bg-primary/10'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                             }`}
                                     >
                                         <IconComponent className="w-5 h-5" />
@@ -355,7 +365,7 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                 </div>
                                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            
+
                             {/* Dropdown Menu Desktop */}
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -367,7 +377,7 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                             <p className="text-xs text-gray-500 mt-1">{user?.email}</p>
                                             <p className="text-xs text-gray-400 mt-1">Vendeur</p>
                                         </div>
-                                        
+
                                         <div className="py-2">
                                             <button
                                                 onClick={() => {
@@ -390,9 +400,9 @@ const VendeurLayout = ({ children }: UserParentLayoutProps) => {
                                                 Changer mot de passe
                                             </button>
                                         </div>
-                                        
+
                                         <div className="border-t border-gray-100 my-1"></div>
-                                        
+
                                         <button
                                             onClick={handleLogout}
                                             className="flex items-center w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1"

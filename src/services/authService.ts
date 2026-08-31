@@ -72,7 +72,7 @@ export const authService = {
       profileData: userProfile
     }
     try {
-      await axios.put(`${API_URL}/auth/${userId}`, updatedUser, {
+      return await axios.put(`${API_URL}/auth/${userId}`, updatedUser, {
         headers: { Authorization: `Bearer ${token}` },
       })
     } catch (error) {

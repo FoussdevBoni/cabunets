@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useVendeur } from "../../hooks/vendeurs/useVendeur"
 import useOffres from "../../hooks/offres/useOffres"
-import { OffresTable } from "../../components/common/lists/OffresTable"
+import { OffresTable } from "../../components/features/offres/OffresTable"
 import {
   Mail,
   Shield,
@@ -15,7 +15,8 @@ import {
   Globe,
   DollarSign,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  TimerIcon
 } from "lucide-react"
 
 export default function VendeurDetailsPage() {
@@ -180,8 +181,8 @@ export default function VendeurDetailsPage() {
                     {vendeur.username}
                   </h2>
                   <div className="flex items-center gap-2 text-gray-600">
-                    <Mail className="h-4 w-4" />
-                    <span className="text-sm">{vendeur.email}</span>
+                    <TimerIcon className="h-4 w-4" />
+                    <span className="text-sm">{vendeur.availability}</span>
                   </div>
                 </div>
 
@@ -192,16 +193,7 @@ export default function VendeurDetailsPage() {
                   </div>
                 )}
 
-                {/* Bouton WhatsApp */}
-                <a
-                  href={`https://wa.me/${vendeur.whatsappNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 transition flex items-center justify-center gap-2 mb-8"
-                >
-                  <Phone className="h-5 w-5" />
-                  Contacter sur WhatsApp
-                </a>
+             
               </div>
             </div>
           </div>

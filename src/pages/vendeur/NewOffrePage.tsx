@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../../hooks/auth/useAuth"
-import OffreForm from "../../components/common/forms/OffreForm"
+import OffreForm from "../../components/features/offres/OffreForm"
 import useToken from "../../hooks/auth/useToken"
 import { offresService } from "../../hooks/offres/useOffres"
 

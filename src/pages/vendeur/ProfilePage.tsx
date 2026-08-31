@@ -17,7 +17,9 @@ import {
   CheckCircle,
   Plus,
   Trash2,
-  Upload
+  Upload,
+  Sun,
+  Moon
 } from "lucide-react"
 import { CurrentUser, Vendeur } from "../../utils/database"
 import { authService } from "../../services/authService"
@@ -40,7 +42,9 @@ export default function ProfilePage() {
     whatsappNumber: "",
     advantage: "",
     paymentAmount: 0,
-    availability: ""
+    availability: "",
+    openingTime: "08:00",
+    closingTime: "18:00"
   })
 
   const [currentPhotos, setCurrentPhotos] = useState<string[]>([])
@@ -53,7 +57,9 @@ export default function ProfilePage() {
         whatsappNumber: vendeur.whatsappNumber || "",
         advantage: vendeur.advantage || "",
         paymentAmount: vendeur.paymentAmount || 0,
-        availability: vendeur.availability || ""
+        availability: vendeur.availability || "",
+        openingTime: vendeur.openingTime || "08:00",
+        closingTime: vendeur.closingTime || "18:00"
       })
       if (vendeur.photoUrls) {
         setCurrentPhotos(vendeur.photoUrls)
@@ -156,6 +162,27 @@ export default function ProfilePage() {
   const activeNetworks = Object.values(vendeur.networks || {}).filter(Boolean).length
   const allPhotoPreviews = [...currentPhotos, ...newPhotoPreviews]
 
+  // Vérifier si le vendeur est actuellement en ligne selon ses horaires
+  const isCurrentlyOnline = () => {
+    if (!form.openingTime || !form.closingTime) return false;
+    
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const [openHour, openMinute] = form.openingTime.split(':').map(Number);
+    const [closeHour, closeMinute] = form.closingTime.split(':').map(Number);
+    
+    const openingMinutes = openHour * 60 + openMinute;
+    const closingMinutes = closeHour * 60 + closeMinute;
+    
+    // Si l'heure d'ouverture est après l'heure de fermeture (ex: 22:00 - 06:00)
+    if (openingMinutes > closingMinutes) {
+      return currentTime >= openingMinutes || currentTime < closingMinutes;
+    }
+    
+    return currentTime >= openingMinutes && currentTime < closingMinutes;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -221,6 +248,12 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
+              {/* Indicateur de statut en ligne */}
+              <div className="absolute bottom-1 right-1">
+                <div className={`h-4 w-4 rounded-full border-2 border-white ${
+                  isCurrentlyOnline() ? 'bg-green-500' : 'bg-gray-400'
+                }`} />
+              </div>
             </div>
             
             <div className="flex-1 text-center md:text-left">
@@ -255,6 +288,24 @@ export default function ProfilePage() {
                 <div className="text-gray-600">Disponibilité</div>
                 <div className={`font-bold ${vendeur.availability === 'En ligne' ? 'text-green-600' : 'text-gray-700'}`}>
                   {vendeur.availability || 'Disponible'}
+                </div>
+              </div>
+              {/* Nouvelle ligne pour les horaires */}
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="text-gray-600">Horaires</div>
+                <div className="font-bold text-sm">
+                  {vendeur.openingTime && vendeur.closingTime ? (
+                    <>
+                      <span className="text-green-600">{vendeur.openingTime}</span>
+                      <span className="text-gray-400 mx-1">-</span>
+                      <span className="text-red-600">{vendeur.closingTime}</span>
+                      <span className={`ml-2 text-xs ${isCurrentlyOnline() ? 'text-green-600' : 'text-gray-500'}`}>
+                        {isCurrentlyOnline() ? '🟢 En ligne' : '⚪ Hors ligne'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-gray-400">Non défini</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -357,6 +408,54 @@ export default function ProfilePage() {
                     className="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
                   />
                 </div>
+              </div>
+
+              {/* Horaires d'ouverture - NOUVEAU */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Sun className="inline h-4 w-4 mr-1 text-yellow-500" />
+                    Heure d'ouverture
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="time"
+                      value={form.openingTime}
+                      onChange={(e) => setForm(prev => ({ ...prev, openingTime: e.target.value }))}
+                      className="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Format: HH:mm (ex: 08:00)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Moon className="inline h-4 w-4 mr-1 text-indigo-500" />
+                    Heure de fermeture
+                  </label>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="time"
+                      value={form.closingTime}
+                      onChange={(e) => setForm(prev => ({ ...prev, closingTime: e.target.value }))}
+                      className="pl-10 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Format: HH:mm (ex: 18:00)</p>
+                </div>
+              </div>
+
+              {/* Indicateur de statut en temps réel */}
+              <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
+                <div className={`h-3 w-3 rounded-full ${isCurrentlyOnline() ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <span className="text-sm font-medium">
+                  {isCurrentlyOnline() ? '🟢 Vous êtes actuellement en ligne' : '⚪ Vous êtes actuellement hors ligne'}
+                </span>
+                <span className="text-xs text-gray-500 ml-auto">
+                  {form.openingTime} - {form.closingTime}
+                </span>
               </div>
 
               {/* Disponibilité */}

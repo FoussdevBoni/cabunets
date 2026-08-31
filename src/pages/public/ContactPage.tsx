@@ -1,3 +1,4 @@
+// pages/ContactPage.tsx
 import { 
   Mail, 
   Phone, 
@@ -15,23 +16,26 @@ export default function ContactPage() {
     {
       icon: <Mail className="h-6 w-6" />,
       title: "Email",
-      details: "support@cabunets.com",
+      details: "cabukaka@gmail.com",
       description: "Pour toute question générale",
-      color: "bg-blue-100 text-blue-600"
+      color: "bg-blue-100 text-blue-600",
+      link: "mailto:cabukaka@gmail.com"
     },
     {
       icon: <Phone className="h-6 w-6" />,
       title: "Téléphone",
-      details: "+243 XX XXX XXXX",
+      details: "+243 815 625 169",
       description: "Support technique",
-      color: "bg-green-100 text-green-600"
+      color: "bg-green-100 text-green-600",
+      link: "tel:+243815625169"
     },
     {
       icon: <MessageSquare className="h-6 w-6" />,
       title: "WhatsApp",
-      details: "+243 XX XXX XXXX",
+      details: "+243 815 625 169",
       description: "Support en direct",
-      color: "bg-green-100 text-green-600"
+      color: "bg-green-100 text-green-600",
+      link: "https://wa.me/243815625169"
     }
   ]
 
@@ -84,7 +88,13 @@ export default function ContactPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {contactMethods.map((method, index) => (
-                <div key={index} className="bg-white rounded-xl border p-8 text-center hover:shadow-lg transition-shadow">
+                <a
+                  key={index}
+                  href={method.link}
+                  target={method.link.startsWith('http') ? '_blank' : undefined}
+                  rel={method.link.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  className="bg-white rounded-xl border p-8 text-center hover:shadow-lg transition-shadow block"
+                >
                   <div className={`h-14 w-14 rounded-full flex items-center justify-center mx-auto mb-4 ${method.color}`}>
                     {method.icon}
                   </div>
@@ -97,7 +107,7 @@ export default function ContactPage() {
                   <p className="text-gray-600">
                     {method.description}
                   </p>
-                </div>
+                </a>
               ))}
             </div>
           </div>
@@ -179,7 +189,7 @@ export default function ContactPage() {
             </div>
           </div>
 
-          {/* Adresse (optionnelle) */}
+          {/* Adresse */}
           <div className="mt-16 bg-white rounded-xl border p-8">
             <div className="flex flex-col md:flex-row items-center gap-8">
               <div className="md:w-1/3 text-center">

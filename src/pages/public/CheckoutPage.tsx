@@ -12,6 +12,10 @@ import { useVendeur } from "../../hooks/vendeurs/useVendeur"
 import { Order } from "../../utils/database"
 import { ordersService } from "../../hooks/orders/useOrders"
 import { alertError, alertSuccess } from "../../helpers/alertError"
+import { formatToRDCPhone } from "../../utils/formatRDCPhone"
+import { useAuth } from "../../hooks/auth/useAuth"
+
+
 
 const providersRDC = [
     { name: "Airtel Money", value: "AIRTEL_COD" },
@@ -20,13 +24,16 @@ const providersRDC = [
 ];
 
 export default function CheckoutPage() {
+    const {user} = useAuth()
+
+    console.log("userId" , user?.id)
     const [searchParams] = useSearchParams()
     const offerId = searchParams.get("offer")
     const navigate = useNavigate()
     const [form, setForm] = useState({
-        rechargePhone: "", // Numéro qui recevra les unités
-        paymentPhone: "",  // Numéro qui va payer la facture Mobile Money
-        correspondent: providersRDC[0].value, // Moyen de paiement choisi
+        rechargePhone: "",
+        paymentPhone: "",
+        correspondent: providersRDC[0].value,
     })
 
     const [currency, setCurrency] = useState<"CDF" | "USD">("CDF")
@@ -66,8 +73,8 @@ export default function CheckoutPage() {
     const totalUnits = offre.units
 
     const calculatePrice = () => {
-        const unitPrice = currency === "CDF" ? offre.priceFC : offre.priceUSD
-        return (unitPrice || 0) * totalUnits
+        const totalPrice = currency === "CDF" ? offre.priceFC : offre.priceUSD
+        return totalPrice || 0
     }
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -90,32 +97,33 @@ export default function CheckoutPage() {
         setSubmitting(true)
 
         try {
-            const cleanRechargePhone = form.rechargePhone.replace(/\D/g, "")
-            const cleanPaymentPhone = form.paymentPhone.replace(/\D/g, "")
+            const cleanRechargePhone = formatToRDCPhone(form.rechargePhone)
+            const cleanPaymentPhone = formatToRDCPhone(form.paymentPhone)
 
             const newOrder: Partial<Order> = {
-                phoneNumber: cleanRechargePhone, // Numéro à recharger
-                paymentPhone: cleanPaymentPhone,   // Numéro pour le débit Cabupay
+                phoneNumber: cleanRechargePhone,
+                paymentPhone: cleanPaymentPhone,
                 contactPhone: cleanRechargePhone,
-                correspondent: form.correspondent, // Moyens de paiement transmis au backend (AIRTEL_COD, etc.)
+                correspondent: form.correspondent,
                 units: totalUnits,
                 price: calculatePrice(),
                 currency: currency,
-                network: offre.network,            // Réseau des unités
+                network: offre.network,
                 offerId: offerId!,
                 vendeurId: offre.vendeurId,
+                clientId: user?.id ,
                 vendeurName: offre.vendeurName,
                 vendeurPhone: vendeur.whatsappNumber,
                 status: "PENDING"
             }
 
-           const data: any =  await ordersService.create(newOrder as Order)
+            const data: any = await ordersService.create(newOrder as Order)
 
-            alertSuccess("Commande initiée avec succès !")
-            setShowConfirm(false)
-            console.log(data)
-
-            navigate(`/order-pending?orderId=${data.order.id || data.order._id }`)
+            if (data.success) {
+                alertSuccess("Commande initiée avec succès !")
+                setShowConfirm(false)
+                navigate(`/order-pending?orderId=${data.order.id || data.order._id}`)
+            }
 
         } catch (error: any) {
             console.error("Erreur:", error.response)
@@ -171,7 +179,7 @@ export default function CheckoutPage() {
                                         <div className="text-xl font-bold">{offre.units}</div>
                                     </div>
                                     <div className="border rounded-lg p-4">
-                                        <div className="text-sm text-gray-600 mb-1">Prix unitaire</div>
+                                        <div className="text-sm text-gray-600 mb-1">Prix total</div>
                                         <div className="text-xl font-bold text-primary">
                                             {offre.priceFC} CDF / ${offre.priceUSD}
                                         </div>
@@ -329,7 +337,7 @@ export default function CheckoutPage() {
                         <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-3">
                             <div className="flex justify-between">
                                 <span className="text-gray-600">N° à recharger:</span>
-                                <span className="font-medium">{form.rechargePhone.replace(/\D/g, "")}</span>
+                                <span className="font-medium">{formatToRDCPhone(form.rechargePhone.replace(/\D/g, ""))}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Moyen de paiement:</span>
@@ -337,7 +345,7 @@ export default function CheckoutPage() {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-600">N° de paiement:</span>
-                                <span className="font-medium">{form.paymentPhone.replace(/\D/g, "")}</span>
+                                <span className="font-medium">{formatToRDCPhone(form.paymentPhone.replace(/\D/g, ""))}</span>
                             </div>
                             <div className="flex justify-between pt-3 border-t">
                                 <span className="text-gray-900 font-medium">Total:</span>

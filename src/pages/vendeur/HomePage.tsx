@@ -1,3 +1,4 @@
+// pages/OverviewPage.tsx
 import { useAuth } from "../../hooks/auth/useAuth"
 import useOffres from "../../hooks/offres/useOffres"
 import { useState, useEffect } from "react"
@@ -9,16 +10,17 @@ import {
   XCircle,
   Plus,
   List,
-  TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Wallet
 } from "lucide-react"
 import useOrders from "../../hooks/orders/useOrders"
+import useWallet from "../../hooks/wallet/useWallet"
 
 interface OrderStats {
   pending: number
-  confirmed: number
   completed: number
-  cancelled: number
+  failed: number
+  delivered: number
   totalRevenue: number
 }
 
@@ -29,11 +31,17 @@ interface NetworkOffers {
 export default function OverviewPage() {
   const { user, loading: userLoading } = useAuth()
   const navigate = useNavigate()
+  const { 
+    wallet, 
+    loading: walletLoading, 
+    getWallet 
+  } = useWallet()
+  
   const [orderStats, setOrderStats] = useState<OrderStats>({
     pending: 0,
-    confirmed: 0,
     completed: 0,
-    cancelled: 0,
+    failed: 0,
+    delivered: 0,
     totalRevenue: 0
   })
   const [networkOffers, setNetworkOffers] = useState<NetworkOffers>({})
@@ -48,6 +56,13 @@ export default function OverviewPage() {
     filters: { vendeurId: user?.id } 
   })
 
+  // Récupérer le wallet quand l'utilisateur est connecté
+  useEffect(() => {
+    if (user?.id) {
+      getWallet(user.id)
+    }
+  }, [user?.id])
+
   // Calcul des statistiques
   useEffect(() => {
     if (!user?.id) {
@@ -57,26 +72,23 @@ export default function OverviewPage() {
 
     try {
       if (orders && Array.isArray(orders)) {
-        // Filtrage et calculs insensibles à la casse
         const completed = orders.filter(o => o.status?.toUpperCase() === "COMPLETED")
+        const delivered = orders.filter(o => o.status?.toUpperCase() === "DELIVERED")
+        const failed = orders.filter(o => o.status?.toUpperCase() === "FAILED")
         
         const stats: OrderStats = {
           pending: orders.filter(o => {
             const st = o.status?.toUpperCase()
-            return st !== "COMPLETED" && st !== "FAILED" && st !== "CANCELLED" && st !== "CONFIRMED"
+            return st !== "COMPLETED" && st !== "FAILED" && st !== "DELIVERED"
           }).length,
-          confirmed: orders.filter(o => o.status?.toUpperCase() === "CONFIRMED").length,
           completed: completed.length,
-          cancelled: orders.filter(o => {
-            const st = o.status?.toUpperCase()
-            return st === "CANCELLED" || st === "FAILED"
-          }).length,
+          failed: failed.length,
+          delivered: delivered.length,
           totalRevenue: completed.reduce((sum, o) => sum + (Number(o.price) || 0), 0)
         }
         setOrderStats(stats)
       }
 
-      // Compter les offres par réseau
       if (offres && Array.isArray(offres)) {
         const networkCount: NetworkOffers = {}
         offres.forEach(offre => {
@@ -108,6 +120,12 @@ export default function OverviewPage() {
       color: "bg-green-100 text-green-600"
     },
     {
+      icon: <List className="h-5 w-5" />,
+      label: "Mes demandes de retraits",
+      onClick: () => navigate("/vendeur/retraits"),
+      color: "bg-green-100 text-green-600"
+    },
+    {
       icon: <Package className="h-5 w-5" />,
       label: "Commandes",
       onClick: () => navigate("/vendeur/orders"),
@@ -116,7 +134,7 @@ export default function OverviewPage() {
   ]
 
   // Chargement
-  if (userLoading || offresLoading || ordersLoading) {
+  if (userLoading || offresLoading || ordersLoading || walletLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -149,19 +167,19 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen mt-10 bg-gray-50 p-4">
       {/* En-tête */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{user?.username  || "Vendeur"}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{user?.username || "Vendeur"}</h1>
           <p className="text-gray-600 mt-1">Espace Vendeur</p>
         </div>
         <div className="bg-white px-4 py-2 rounded-xl border flex items-center gap-3 shadow-sm">
-          <TrendingUp className="h-5 w-5 text-green-600" />
+          <Wallet className="h-5 w-5 text-primary" />
           <div>
-            <div className="text-xs text-gray-500">Gains générés</div>
+            <div className="text-xs text-gray-500">Solde disponible</div>
             <div className="text-sm font-bold text-gray-900">
-              {orderStats.totalRevenue.toLocaleString("fr-FR")} FCFA
+              {wallet?.totalInDisplay?.wallet?.toLocaleString("fr-FR") || 0} {wallet?.totalInDisplay?.currency || "FCFA"}
             </div>
           </div>
         </div>
@@ -185,12 +203,12 @@ export default function OverviewPage() {
 
           <div className="bg-white rounded-xl border p-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-blue-600" />
+              <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <CheckCircle className="h-5 w-5 text-indigo-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-600">Confirmées</div>
-                <div className="text-xl font-bold text-gray-900">{orderStats.confirmed}</div>
+                <div className="text-sm text-gray-600">Payées</div>
+                <div className="text-xl font-bold text-gray-900">{orderStats.completed}</div>
               </div>
             </div>
           </div>
@@ -201,8 +219,8 @@ export default function OverviewPage() {
                 <CheckCircle className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-600">Traitées</div>
-                <div className="text-xl font-bold text-gray-900">{orderStats.completed}</div>
+                <div className="text-sm text-gray-600">Livrées</div>
+                <div className="text-xl font-bold text-gray-900">{orderStats.delivered}</div>
               </div>
             </div>
           </div>
@@ -213,8 +231,8 @@ export default function OverviewPage() {
                 <AlertCircle className="h-5 w-5 text-red-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-600">Échouées / Annulées</div>
-                <div className="text-xl font-bold text-gray-900">{orderStats.cancelled}</div>
+                <div className="text-sm text-gray-600">Échouées</div>
+                <div className="text-xl font-bold text-gray-900">{orderStats.failed}</div>
               </div>
             </div>
           </div>
@@ -254,7 +272,7 @@ export default function OverviewPage() {
       {/* Accès rapides */}
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-4">Accès rapide</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {quickLinks.map((link, index) => (
             <button
               key={index}

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom"
 import { Loader2, CheckCircle2, XCircle, Smartphone, ArrowRight } from "lucide-react"
 import { ordersService } from "../../hooks/orders/useOrders"
 import { Order } from "../../utils/database"
+import { getPawapayError } from "../../utils/getPawapayErrors" // Assure-toi d'ajuster le chemin de ton fichier
 
 export default function OrderPendingPage() {
     const [searchParams] = useSearchParams()
@@ -17,12 +18,10 @@ export default function OrderPendingPage() {
     const statusRef = useRef(status)
     statusRef.current = status
 
-    // Appel direct à votre endpoint de synchro backend
     const checkAndSyncStatus = useCallback(async () => {
         if (!orderId) return
 
         try {
-            // Cet appel en arrière-plan vérifie Cabupay et met à jour la BDD
             const updatedOrder = await ordersService.syncOrderStatus(orderId)
 
             if (!updatedOrder) {
@@ -31,7 +30,7 @@ export default function OrderPendingPage() {
                 return
             }
 
-            setOrder(updatedOrder)
+            setOrder(updatedOrder.order)
             setLoading(false)
 
             const currentStatus = updatedOrder.status?.toUpperCase()
@@ -56,10 +55,8 @@ export default function OrderPendingPage() {
 
         let isMounted = true
 
-        // Premier contrôle immédiat
         checkAndSyncStatus()
 
-        // Polling toutes les 3 secondes tant que la commande est PENDING
         const interval = setInterval(() => {
             if (isMounted && statusRef.current === "PENDING") {
                 checkAndSyncStatus()
@@ -184,9 +181,10 @@ export default function OrderPendingPage() {
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
                             Transaction échouée
                         </h2>
-                        <p className="text-gray-600 text-sm mb-6">
-                            Le paiement n'a pas pu être validé ou a été annulé depuis le téléphone.
-                        </p>
+                        
+                        <div className="bg-red-50 border border-red-100 text-red-700 p-3 rounded-lg text-sm mb-6">
+                        {getPawapayError(order?.failureCode || order?.failureReason || "")}
+                        </div>
 
                         <div className="flex gap-3">
                             <button

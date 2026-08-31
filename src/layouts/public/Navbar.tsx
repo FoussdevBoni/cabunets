@@ -11,12 +11,14 @@ import {
   ShoppingBag,
   LogOut,
   ChevronDown,
-  Settings
+  Settings,
+  LayoutDashboard,
+  CreditCard
 } from 'lucide-react'
 import { useAuth } from '../../hooks/auth/useAuth'
 
 export default function Navbar() {
-  const { user, logout  } = useAuth() 
+  const { user, logout } = useAuth() 
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -28,44 +30,160 @@ export default function Navbar() {
     { label: 'Contact', href: '/contact' },
   ]
 
-  // Menu dropdown pour utilisateur connecté
-  const userMenuItems = [
-    {
-      label: 'Tableau de bord',
-      href: user?.role === 'admin' ? '/admin/overview' : '/vendeur/overview',
-      icon: <Home className="h-4 w-4" />
-    },
-    {
-      label: 'Commandes',
-      href: user?.role === 'admin' ? '/admin/orders' : '/vendeur/orders',
-      icon: <ShoppingBag className="h-4 w-4" />
-    },
-    {
-      label: 'Offres',
-      href: user?.role === 'admin' ? '/admin/offres' : '/vendeur/offres',
-      icon: <Package className="h-4 w-4" />
-    },
-    ...(user?.role === 'admin' ? [{
-      label: 'Vendeurs',
-      href: '/admin/vendeurs',
-      icon: <Users className="h-4 w-4" />
-    }] : []),
-    { type: 'separator' },
-    {
-      label: 'Mon profil',
-      href: '/vendeur/profile',
-      icon: <Settings className="h-4 w-4" />
-    },
-    {
-      label: 'Se déconnecter',
-      action: () => {
-        logout()
-        navigate('/')
-        setIsDropdownOpen(false)
-      },
-      icon: <LogOut className="h-4 w-4" />
+  // Menu dropdown pour utilisateur connecté selon son rôle
+  const getUserMenuItems = () => {
+    const role = user?.role
+    
+    // Menu pour ADMIN
+    if (role === 'admin') {
+      return [
+        {
+          label: 'Tableau de bord',
+          href: '/admin/overview',
+          icon: <LayoutDashboard className="h-4 w-4" />
+        },
+        {
+          label: 'Commandes',
+          href: '/admin/orders',
+          icon: <ShoppingBag className="h-4 w-4" />
+        },
+        {
+          label: 'Offres',
+          href: '/admin/offres',
+          icon: <Package className="h-4 w-4" />
+        },
+        {
+          label: 'Vendeurs',
+          href: '/admin/vendeurs',
+          icon: <Users className="h-4 w-4" />
+        },
+        { type: 'separator' },
+        {
+          label: 'Mon profil',
+          href: '/admin/profile',
+          icon: <Settings className="h-4 w-4" />
+        },
+        {
+          label: 'Se déconnecter',
+          action: () => {
+            logout()
+            navigate('/')
+            setIsDropdownOpen(false)
+          },
+          icon: <LogOut className="h-4 w-4" />
+        }
+      ]
     }
-  ]
+    
+    // Menu pour VENDEUR
+    if (role === 'vendeur') {
+      return [
+        {
+          label: 'Tableau de bord',
+          href: '/vendeur/overview',
+          icon: <LayoutDashboard className="h-4 w-4" />
+        },
+        {
+          label: 'Commandes',
+          href: '/vendeur/orders',
+          icon: <ShoppingBag className="h-4 w-4" />
+        },
+        {
+          label: 'Mes offres',
+          href: '/vendeur/offres',
+          icon: <Package className="h-4 w-4" />
+        },
+        { type: 'separator' },
+        {
+          label: 'Mon profil',
+          href: '/vendeur/profile',
+          icon: <Settings className="h-4 w-4" />
+        },
+        {
+          label: 'Se déconnecter',
+          action: () => {
+            logout()
+            navigate('/')
+            setIsDropdownOpen(false)
+          },
+          icon: <LogOut className="h-4 w-4" />
+        }
+      ]
+    }
+    
+    // Menu pour CLIENT
+    if (role === 'client') {
+      return [
+        {
+          label: 'Tableau de bord',
+          href: '/client/overview',
+          icon: <LayoutDashboard className="h-4 w-4" />
+        },
+        {
+          label: 'Mes achats',
+          href: '/client/achats',
+          icon: <ShoppingBag className="h-4 w-4" />
+        },
+       
+        { type: 'separator' },
+        {
+          label: 'Mon profil',
+          href: '/client/profile',
+          icon: <Settings className="h-4 w-4" />
+        },
+        {
+          label: 'Se déconnecter',
+          action: () => {
+            logout()
+            navigate('/')
+            setIsDropdownOpen(false)
+          },
+          icon: <LogOut className="h-4 w-4" />
+        }
+      ]
+    }
+    
+    // Menu par défaut (si rôle non reconnu)
+    return [
+      {
+        label: 'Mon profil',
+        href: '/profile',
+        icon: <Settings className="h-4 w-4" />
+      },
+      {
+        label: 'Se déconnecter',
+        action: () => {
+          logout()
+          navigate('/')
+          setIsDropdownOpen(false)
+        },
+        icon: <LogOut className="h-4 w-4" />
+      }
+    ]
+  }
+
+  const userMenuItems = getUserMenuItems()
+
+  // Déterminer le bouton d'action pour les utilisateurs non connectés
+  const getAuthButton = () => {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigate('/login')}
+          className="text-gray-700 hover:text-primary font-medium transition-colors duration-200 px-4 py-2"
+        >
+          Se connecter
+        </button>
+        <button
+          onClick={() => navigate('/vendeur-register')}
+          className="hidden sm:inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-all duration-200"
+        >
+          <UserPlus className="h-4 w-4" />
+          Devenir vendeur
+        </button>
+      </div>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
@@ -134,6 +252,7 @@ export default function Navbar() {
                       <div className="px-4 py-3 border-b">
                         <div className="text-sm font-medium text-gray-900">{user.username}</div>
                         <div className="text-xs text-gray-500">{user.email}</div>
+                        <div className="text-xs text-gray-400 mt-1 capitalize">{user.role}</div>
                       </div>
                       
                       {/* Items */}
@@ -168,16 +287,10 @@ export default function Navbar() {
               </div>
             ) : (
               // Si utilisateur non connecté
-              <button
-                onClick={() => navigate('/vendeur/register')}
-                className="hidden sm:inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-all duration-200"
-              >
-                <UserPlus className="h-4 w-4" />
-                Devenir vendeur
-              </button>
+              getAuthButton()
             )}
 
-            {/* Bouton mobile */}
+            {/* Bouton mobile pour non connecté */}
             {!user && (
               <button
                 onClick={() => navigate('/vendeur/register')}
@@ -216,10 +329,12 @@ export default function Navbar() {
                 // Menu utilisateur mobile
                 <>
                   <div className="border-t pt-4">
-                    <div className="text-xs text-gray-500 font-medium px-4 mb-2">Mon compte</div>
-                    {userMenuItems.map((item) => {
+                    <div className="text-xs text-gray-500 font-medium px-4 mb-2">
+                      Mon compte ({user.role})
+                    </div>
+                    {userMenuItems.map((item, index) => {
                       if (item.type === 'separator') {
-                        return null // On cache les séparateurs en mobile
+                        return <div key={index} className="border-t my-2" />
                       }
                       
                       return (
@@ -243,16 +358,27 @@ export default function Navbar() {
                   </div>
                 </>
               ) : (
-                <button
-                  onClick={() => {
-                    navigate('/vendeur/register')
-                    setIsMenuOpen(false)
-                  }}
-                  className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition"
-                >
-                  <UserPlus className="h-5 w-5" />
-                  Devenir vendeur
-                </button>
+                <>
+                  <button
+                    onClick={() => {
+                      navigate('/login')
+                      setIsMenuOpen(false)
+                    }}
+                    className="flex items-center justify-center gap-2 text-primary font-medium py-2 px-4 rounded-lg hover:bg-gray-50 transition border border-primary"
+                  >
+                    Se connecter
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate('//vendeur-register')
+                      setIsMenuOpen(false)
+                    }}
+                    className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition"
+                  >
+                    <UserPlus className="h-5 w-5" />
+                    Devenir vendeur
+                  </button>
+                </>
               )}
             </div>
           </div>

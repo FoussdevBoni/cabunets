@@ -74,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateUser = async (user: User) => {
     const {profile , avatar , username } = user
     try {
-      await authService.updateUser(token , user.id! , { avatar , username} , profile)
+       await authService.updateUser(token , user.id! , { avatar , username} , profile)
     } catch (error) {
       throw error
     }

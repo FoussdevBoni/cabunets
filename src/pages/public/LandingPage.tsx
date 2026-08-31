@@ -42,7 +42,7 @@ export default function LandingPage() {
           {!user && (
             <div className="mt-10">
               <button
-                onClick={() => navigate('/vendeur-register')}
+                onClick={() => navigate('/register')}
                 className="inline-flex items-center gap-2.5 bg-primary text-white px-7 py-3.5 rounded-xl text-sm font-semibold hover:bg-zinc-900 active:scale-[0.98] transition-all shadow-md shadow-zinc-950/10"
               >
                 <UserPlus className="h-4 w-4" />

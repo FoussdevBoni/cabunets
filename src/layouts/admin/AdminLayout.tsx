@@ -1,14 +1,17 @@
 import { ReactNode, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { 
-  Home, 
-  Package, 
-  Users, 
+import {
+  Home,
+  Package,
+  Users,
   ShoppingBag,
   Menu,
   X,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Outdent,
+  Settings,
+  Wallet
 } from "lucide-react"
 
 interface AdminLayoutProps {
@@ -20,6 +23,11 @@ const menuItems = [
   { path: "orders", label: "Commandes", icon: <ShoppingBag className="h-5 w-5" /> },
   { path: "offres", label: "Offres", icon: <Package className="h-5 w-5" /> },
   { path: "vendeurs", label: "Vendeurs", icon: <Users className="h-5 w-5" /> },
+  { path: "users", label: "Utilisateurs", icon: <Users className="h-5 w-5" /> },
+  { path: "clients", label: "Clients", icon: <Users className="h-5 w-5" /> },
+  { path: "retraits", label: "Retraits", icon: <Outdent className="h-5 w-5" /> },
+  { path: "wallets", label: "Portefeuilles", icon: <Wallet className="h-5 w-5" /> },
+  { path: "settings", label: "Paramètres", icon: <Settings className="h-5 w-5" /> },
 ]
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
@@ -67,8 +75,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       {/* Sidebar mobile */}
       {sidebarOpen && (
         <div className="lg:hidden fixed inset-0 z-40">
-          <div 
-            className="fixed inset-0 bg-black/50" 
+          <div
+            className="fixed inset-0 bg-black/50"
             onClick={() => setSidebarOpen(false)}
           />
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-xl">
@@ -88,11 +96,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     <button
                       key={item.path}
                       onClick={() => handleNavigate(item.path)}
-                      className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${
-                        currentPath === item.path
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${currentPath === item.path
                           ? "bg-primary text-white"
                           : "text-gray-700 hover:bg-gray-100"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         {item.icon}
@@ -139,11 +146,10 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <button
                   key={item.path}
                   onClick={() => handleNavigate(item.path)}
-                  className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${
-                    currentPath === item.path
+                  className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${currentPath === item.path
                       ? "bg-primary text-white"
                       : "text-gray-700 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     {item.icon}

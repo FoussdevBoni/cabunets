@@ -4,6 +4,7 @@ import { dataService, QueryFilters } from '../../services/dataService'
 import { useData } from '../data/useData'
 import axios from 'axios'
 import { API_URL } from '../../utils/api'
+import { alertError } from '../../helpers/alertError'
 
 
 
@@ -113,9 +114,59 @@ export const ordersService = {
             return response.data
         } catch (error: any) {
             console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
-            throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
+            throw error
         }
     },
+
+    deliverOrder: async (token: string, orderId: string): Promise<any> => {
+
+        if (!token || !orderId) {
+            alertError("Une erreur s'est produite. Veillez vous reconnecter")
+            return
+        }
+        try {
+            const response = await axios.get(
+                `${API_URL}/orders/deliver-order/${orderId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            )
+            return response.data
+        } catch (error: any) {
+            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
+            throw error
+        }
+    },
+    getDeposit: async (token: string, depositId: string): Promise<any> => {
+        try {
+            const response = await axios.get(
+                `${API_URL}/payments/deposit/${depositId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            )
+            return response.data
+        } catch (error: any) {
+            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
+            throw error
+        }
+    },
+    // Dans ordersService
+    sendPendingWhatsApp: async (token: string) => {
+      try {
+          const response = await axios.get(`${API_URL}/orders/whatsapp/send-pending`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        return response.data
+      } catch (error: any) {
+        console.error(`Error` , error.response)
+        throw error
+      }
+    }
 }
 
 interface Props {

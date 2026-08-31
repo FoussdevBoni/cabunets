@@ -5,7 +5,7 @@ import useToken from "../../hooks/auth/useToken"
 import { offresService } from "../../hooks/offres/useOffres"
 import { Offre } from "../../utils/database"
 import { useAuth } from "../../hooks/auth/useAuth"
-import OffreForm from "../../components/common/forms/OffreForm"
+import OffreForm from "../../components/features/offres/OffreForm"
 
 
 export default function UpdateOffrePage() {
