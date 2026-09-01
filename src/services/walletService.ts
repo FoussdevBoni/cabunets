@@ -147,7 +147,7 @@ export class WalletService {
       {
         $group: {
           _id: null,
-          totalRetraits: { $sum: "$netAmount" },
+          totalRetraits: { $sum: "$amount" },
           count: { $sum: 1 }
         }
       }
@@ -222,7 +222,7 @@ export class WalletService {
     return {
       vendeurId,
       vendeur: vendeurInfos,
-      commissionRate,
+      commissionRate: setting.commissionRate,
       ordersCount: caInfo.count,
       retraitsCount: retraitsInfo.count,
       details,
