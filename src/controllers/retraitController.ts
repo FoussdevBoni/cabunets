@@ -19,9 +19,7 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
       return res.status(400).json({ error: 'Le montant est obligatoire et doit être supérieur à 0' });
     }
 
-    if (!netAmount || netAmount <= 0) {
-      return res.status(400).json({ error: 'Le netAmount est obligatoire et doit être supérieur à 0' });
-    }
+   
 
     if (!methodPayment || !methodPayment.type || !methodPayment.number || !methodPayment.intitule) {
       return res.status(400).json({ error: 'Les informations de paiement sont obligatoires' });
@@ -31,7 +29,6 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
       vendeurId,
       vendeur: vendeurId ,
       amount,
-      netAmount,
       methodPayment,
       status: 'PENDING',
     });

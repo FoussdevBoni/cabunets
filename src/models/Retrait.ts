@@ -5,7 +5,6 @@ export interface IRetrait extends Document {
     vendeurId: mongoose.Types.ObjectId;
     vendeur: mongoose.Types.ObjectId;
     amount: number;
-    netAmount: number;
     methodPayment: {
         type: "Momo" | "Bank";
         number: string;
@@ -35,10 +34,7 @@ const RetraitSchema = new Schema<IRetrait>(
             type: Number,
             required: true,
         },
-        netAmount: {
-            type: Number,
-            required: true,
-        },
+      
         methodPayment: {
             type: {
                 type: String,
