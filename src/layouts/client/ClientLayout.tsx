@@ -7,7 +7,8 @@ import {
     ChevronDown,
     LogOut,
     LayoutDashboard,
-    Package
+    Package,
+    MessageCircle
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/auth/useAuth';
@@ -28,9 +29,9 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    
+
     const dropdownRef = useRef<HTMLDivElement>(null);
-    
+
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -62,12 +63,22 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
             route: '/client/achats'
         },
         {
+            id: "reclamations",
+            route: "/client/reclamations",
+            title: "Réclamations",
+            icon: MessageCircle,
+            iconActive: MessageCircle,
+
+        },
+
+        {
             id: 'profile',
             title: 'Profil',
             icon: User,
             iconActive: User,
             route: '/client/profile'
         },
+
     ];
 
     // Détection améliorée de la taille d'écran
@@ -134,7 +145,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                 {getInitials(user?.username || "")}
                             </span>
                         </button>
-                        
+
                         {/* Dropdown Menu Mobile */}
                         {isDropdownOpen && (
                             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -189,8 +200,8 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                             key={item.id}
                             onClick={() => handleNavClick(item.route)}
                             className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[60px] ${isActive
-                                    ? 'text-primary bg-primary/10'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                ? 'text-primary bg-primary/10'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                 }`}
                         >
                             <IconComponent className="w-5 h-5 mb-1" />
@@ -223,8 +234,8 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                     key={item.id}
                                     onClick={() => handleNavClick(item.route)}
                                     className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[70px] ${isActive
-                                            ? 'text-primary bg-primary/10'
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                        ? 'text-primary bg-primary/10'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                         }`}
                                 >
                                     <IconComponent className="w-5 h-5 mb-1" />
@@ -248,7 +259,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                 </div>
                                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            
+
                             {/* Dropdown Menu Tablet */}
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -259,7 +270,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                             </p>
                                             <p className="text-xs text-gray-500 mt-1">Client</p>
                                         </div>
-                                        
+
                                         <div className="py-2">
                                             <button
                                                 onClick={() => {
@@ -282,9 +293,9 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                                 Changer mot de passe
                                             </button>
                                         </div>
-                                        
+
                                         <div className="border-t border-gray-100 my-1"></div>
-                                        
+
                                         <button
                                             onClick={handleLogout}
                                             className="flex items-center w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50"
@@ -324,8 +335,8 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                         key={item.id}
                                         onClick={() => handleNavClick(item.route)}
                                         className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${isActive
-                                                ? 'text-primary bg-primary/10'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                            ? 'text-primary bg-primary/10'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                             }`}
                                     >
                                         <IconComponent className="w-5 h-5" />
@@ -356,7 +367,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                 </div>
                                 <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            
+
                             {/* Dropdown Menu Desktop */}
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
@@ -368,7 +379,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                             <p className="text-xs text-gray-500 mt-1">{user?.email}</p>
                                             <p className="text-xs text-gray-400 mt-1">Client</p>
                                         </div>
-                                        
+
                                         <div className="py-2">
                                             <button
                                                 onClick={() => {
@@ -391,9 +402,9 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                                 Changer mot de passe
                                             </button>
                                         </div>
-                                        
+
                                         <div className="border-t border-gray-100 my-1"></div>
-                                        
+
                                         <button
                                             onClick={handleLogout}
                                             className="flex items-center w-full px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-md mx-1"

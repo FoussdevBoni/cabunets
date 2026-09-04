@@ -20,6 +20,7 @@ export default function WalletsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+
   useEffect(() => {
     getAllWallets();
   }, []);
@@ -356,10 +357,7 @@ export default function WalletsPage() {
                                     <span className="text-gray-600">ID</span>
                                     <span className="font-mono text-xs">{wallet.vendeurId}</span>
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Taux commission</span>
-                                    <span className="font-medium">{wallet.commissionRate * 100}%</span>
-                                  </div>
+                             
                                   <div className="flex justify-between">
                                     <span className="text-gray-600">Nombre retraits</span>
                                     <span className="font-medium">{wallet.retraitsCount}</span>

@@ -85,6 +85,7 @@ export default function ClientProfilePage() {
 
       const updatedData: CurrentUser = {
         profile: {
+          id: user.id || user._id || "",
           whatsappNumber: form.whatsappNumber,
           rechargePhone: form.rechargePhone,
           address: form.address

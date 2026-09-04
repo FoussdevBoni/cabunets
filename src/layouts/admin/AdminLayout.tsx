@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Outdent,
   Settings,
-  Wallet
+  Wallet,
+  MessageCircle
 } from "lucide-react"
 
 interface AdminLayoutProps {
@@ -25,6 +26,8 @@ const menuItems = [
   { path: "vendeurs", label: "Vendeurs", icon: <Users className="h-5 w-5" /> },
   { path: "users", label: "Utilisateurs", icon: <Users className="h-5 w-5" /> },
   { path: "clients", label: "Clients", icon: <Users className="h-5 w-5" /> },
+  { path: "reclamations", label: "Réclamations", icon: <MessageCircle className="h-5 w-5" /> },
+
   { path: "retraits", label: "Retraits", icon: <Outdent className="h-5 w-5" /> },
   { path: "wallets", label: "Portefeuilles", icon: <Wallet className="h-5 w-5" /> },
   { path: "settings", label: "Paramètres", icon: <Settings className="h-5 w-5" /> },

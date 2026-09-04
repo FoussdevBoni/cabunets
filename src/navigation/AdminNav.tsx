@@ -12,6 +12,8 @@ import VendeurDetailsPage from '../pages/admin/VendeurDetailsPage';
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage';
 import WalletsPage from '../pages/admin/WalletsPage';
 import RetraitsPage from '../pages/admin/RetraitsPage';
+import ReclamationsPage from '../pages/admin/ReclamationsPage';
+import ReclamationsDetailsPage from '../pages/admin/ReclamationsDetailsPage';
 
 
 const MainRoutes = () => {
@@ -31,6 +33,8 @@ const MainRoutes = () => {
         <Route path="/settings" element={<AdminSettingsPage />} />
         <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/retraits" element={<RetraitsPage />} />
+        <Route path="/reclamations" element={<ReclamationsPage />} />
+        <Route path="/reclamations/details/:id" element={<ReclamationsDetailsPage />} />
 
 
         <Route path="*" element={<Navigate to="/" replace />} />

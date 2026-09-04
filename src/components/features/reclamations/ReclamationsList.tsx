@@ -1,4 +1,5 @@
 // components/reclamations/ReclamationsList.tsx
+import { useAuth } from "../../../hooks/auth/useAuth";
 import { Reclamation } from "../../../types/Reclamation";
 import TableList, { SelectAction } from "../../ui/TableList";
 import ReclamationRow from "./ReclamationRow";
@@ -18,13 +19,22 @@ export default function ReclamationsList({
   selectable = false,
   selectActions,
 }: ReclamationsListProps) {
+  const {user} = useAuth()
+
+  console.log("reclamations" , reclamations)
   const columns = [
-    { header: "Client", className: "w-1/6" },
     { header: "Objet", className: "w-1/3" },
     { header: "Statut", className: "w-1/6" },
     { header: "Pièces jointes", className: "w-1/6" },
     { header: "Date", className: "hidden lg:table-cell w-1/6" },
   ];
+
+   if (user?.role==="admin") {
+    columns.unshift(
+    { header: "Client", className: "w-1/6" },
+
+    )
+   }
 
   return (
     <TableList

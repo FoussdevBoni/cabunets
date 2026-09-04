@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import HomePage from '../pages/vendeur/HomePage';
 import VendeurLayout from '../layouts/vendeur/VendeurLayout';
 import OffresPage from '../pages/vendeur/OffresPage';
@@ -11,6 +11,9 @@ import NotFoundPage from '../pages/public/NotFountPage';
 import RetraitsPage from '../pages/vendeur/RetraitsPage';
 import NewRetraitPage from '../pages/vendeur/NewRetraitPage';
 import UpdateRetraitPage from '../pages/vendeur/UpdateRetraitPage';
+import UserReclamationsPage from '../pages/user/ReclamationsPage';
+import NewReclamationPage from '../pages/user/NewReclamationPage';
+import UpdateReclamationPage from '../pages/user/UpdateReclamationPage';
 
 
 const MainRoutes = () => {
@@ -22,6 +25,7 @@ const MainRoutes = () => {
                 <Route path="/offres" element={<OffresPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/retraits" element={<RetraitsPage />} />
+                <Route path="/reclamations" element={<UserReclamationsPage />} />
 
 
                 <Route path="*" element={<NotFoundPage />} />
@@ -43,6 +47,9 @@ function VendeurNav() {
 
             <Route path="/nouveau-retrait" element={<NewRetraitPage />} />
             <Route path="/modifier-retrait/:id" element={<UpdateRetraitPage />} />
+
+            <Route path="/reclamations/new" element={<NewReclamationPage />} />
+            <Route path="/reclamations/:id/update" element={<UpdateReclamationPage />} />
 
         </Routes>
     );

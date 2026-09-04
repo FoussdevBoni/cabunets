@@ -1,5 +1,6 @@
 // components/reclamations/ReclamationRow.tsx
 import { formatDate } from "../../../functions/formatDate";
+import { useAuth } from "../../../hooks/auth/useAuth";
 import { Reclamation } from "../../../types/Reclamation";
 import TableRow from "../../ui/TableRow";
 
@@ -18,6 +19,8 @@ export default function ReclamationRow({
   isSelected = false,
   selectable = false,
 }: ReclamationRowProps) {
+
+  const { user } = useAuth()
   const getStatutColor = (statut?: Reclamation["statut"]) => {
     if (statut === "resolue") return "bg-green-100 text-green-800";
     if (statut === "rejetee") return "bg-red-100 text-red-800";
@@ -43,14 +46,18 @@ export default function ReclamationRow({
       selectable={selectable}
       actionable={true}
     >
-      <td className="py-3 px-4">
-        <div>
-          <span className="font-medium text-gray-900 block">{reclamation.clientId}</span>
-          {reclamation.reference && (
-            <span className="text-gray-500 text-xs">{reclamation.reference}</span>
-          )}
-        </div>
-      </td>
+
+      {
+        user?.role === "admin" && <td className="py-3 px-4">
+          <div>
+            <span className="font-medium text-gray-900 block">{reclamation?.user?.username}</span>
+            {reclamation.reference && (
+              <span className="text-gray-500 text-xs">{reclamation.user.role}</span>
+            )}
+          </div>
+        </td>
+      }
+
 
       <td className="py-3 px-4">
         <div>

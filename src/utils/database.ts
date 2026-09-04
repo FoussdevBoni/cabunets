@@ -119,7 +119,7 @@ export interface Order {
   deliveredAt?: Date;
   failureCode?: string
   createdAt?: Date;
-
+  reference?: string
   updatedAt?: Date;
 }
 

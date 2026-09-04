@@ -11,7 +11,8 @@ import {
   Plus,
   List,
   AlertCircle,
-  Wallet
+  Wallet,
+  MessageCircle
 } from "lucide-react"
 import useOrders from "../../hooks/orders/useOrders"
 import useWallet from "../../hooks/wallet/useWallet"
@@ -129,6 +130,12 @@ export default function OverviewPage() {
       icon: <Package className="h-5 w-5" />,
       label: "Commandes",
       onClick: () => navigate("/vendeur/orders"),
+      color: "bg-purple-100 text-purple-600"
+    },
+     {
+      icon: <MessageCircle className="h-5 w-5" />,
+      label: "Mes plaintes",
+      onClick: () => navigate("/vendeur/reclamations"),
       color: "bg-purple-100 text-purple-600"
     }
   ]

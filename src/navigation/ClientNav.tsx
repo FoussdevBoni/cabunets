@@ -5,6 +5,9 @@ import ClientLayout from '../layouts/client/ClientLayout';
 import ClientDashboardPage from '../pages/client/ClientDashboardPage';
 import ClientOrdersPage from '../pages/client/OrdersPage';
 import ClientProfilePage from '../pages/client/ClientProfilePage';
+import ClientReclamationsPage from '../pages/user/ReclamationsPage';
+import NewReclamationPage from '../pages/user/NewReclamationPage';
+import UpdateReclamationPage from '../pages/user/UpdateReclamationPage';
 
 
 const MainRoutes = () => {
@@ -15,6 +18,7 @@ const MainRoutes = () => {
                 <Route path="/overview" element={<ClientDashboardPage />} />
                 <Route path="/achats" element={<ClientOrdersPage />} />
                 <Route path="/profile" element={<ClientProfilePage />} />
+                <Route path="/reclamations" element={<ClientReclamationsPage />} />
 
 
                 <Route path="*" element={<NotFoundPage />} />
@@ -29,8 +33,10 @@ function ClientNav() {
         <Routes>
 
             <Route path="/*" element={<MainRoutes />} />
-       
-          
+                <Route path="/reclamations/new" element={<NewReclamationPage />} />
+                <Route path="/reclamations/:id/update" element={<UpdateReclamationPage />} />
+
+
 
 
         </Routes>

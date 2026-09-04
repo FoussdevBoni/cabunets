@@ -1,15 +1,15 @@
 // pages/ReclamationsPage.tsx
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Search, X, Eye } from "lucide-react";
+import { Search, X, Eye, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import PageLitLayout from "../../layouts/PageListLayout";
 import DeleteConfirmationModal from "../../components/ui/DeleteConfirmationModal";
 import MenuModal, { Menu } from "../../components/ui/MenuModal";
-import useReclamations from "../../hooks/reclamations/useReclamations";
+import useReclamations, { reclamationsService } from "../../hooks/reclamations/useReclamations";
 import { alertSuccess, alertError } from "../../helpers/alertError";
 import useToken from "../../hooks/auth/useToken";
 import ReclamationsList from "../../components/features/reclamations/ReclamationsList";
 import { Reclamation } from "../../types/Reclamation";
+import { useNavigate } from "react-router-dom";
 
 export default function ReclamationsPage() {
   const { token } = useToken();
@@ -20,13 +20,12 @@ export default function ReclamationsPage() {
   const [reclamationToDelete, setReclamationToDelete] = useState<Reclamation | null>(null);
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
+ const navigate = useNavigate()
   // Statistiques
   const stats = useMemo(() => {
     const list = reclamations || [];
     return {
       total: list.length,
-      brouillon: list.filter(r => r.statut === "brouillon").length,
       soumise: list.filter(r => r.statut === "soumise").length,
       en_cours: list.filter(r => r.statut === "en_cours").length,
       resolue: list.filter(r => r.statut === "resolue").length,
@@ -43,7 +42,7 @@ export default function ReclamationsPage() {
       result = result.filter(
         (r) =>
           (r.id || r._id || "").toLowerCase().includes(searchLower) ||
-          (r.clientId && r.clientId.toLowerCase().includes(searchLower)) ||
+          (r.user?.username && r.user.username.toLowerCase().includes(searchLower)) ||
           (r.objet && r.objet.toLowerCase().includes(searchLower)) ||
           (r.reference && r.reference.toLowerCase().includes(searchLower))
       );
@@ -108,15 +107,32 @@ export default function ReclamationsPage() {
 
   const hasActiveFilters = selectedStatut || searchTerm;
 
+  const updateStatus = async (id: string, status: Reclamation["statut"]) => {
+    try {
+      await reclamationsService.updateStatut(token, id, status);
+      alertSuccess(`Réclamation ${status === 'en_cours' ? 'marquée en cours' : status === 'resolue' ? 'résolue' : 'rejetée'}`);
+      await refresh();
+    } catch (error) {
+      alertError("Une erreur s'est produite");
+    }
+  };
+
   const getActionsMenu = (reclamation: Reclamation): Menu[] => {
     const actions: Menu[] = [];
 
-    if (reclamation.statut === "brouillon" || reclamation.statut === "soumise") {
+    if (reclamation.statut === "soumise") {
       actions.push({
         label: "Marquer en cours",
-        icon: Eye,
-        onClick: () => {
-          // TODO: Appeler l'API pour changer le statut
+        icon: Clock,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'en_cours');
+        },
+      });
+      actions.push({
+        label: "Rejeter",
+        icon: XCircle,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'rejetee');
         },
       });
     }
@@ -124,12 +140,47 @@ export default function ReclamationsPage() {
     if (reclamation.statut === "en_cours") {
       actions.push({
         label: "Marquer résolue",
-        icon: Eye,
-        onClick: () => {
-          // TODO: Appeler l'API pour changer le statut
+        icon: CheckCircle,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'resolue');
+        },
+      });
+      actions.push({
+        label: "Rejeter",
+        icon: XCircle,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'rejetee');
         },
       });
     }
+
+    if (reclamation.statut === "resolue") {
+      actions.push({
+        label: "Marquer en cours",
+        icon: Clock,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'en_cours');
+        },
+      });
+    }
+
+    if (reclamation.statut === "rejetee") {
+      actions.push({
+        label: "Marquer en cours",
+        icon: Clock,
+        onClick: async () => {
+          await updateStatus(reclamation.id, 'en_cours');
+        },
+      });
+    }
+
+    actions.push({
+      label: "Voir détails",
+      icon: Eye,
+      onClick: () => {
+        navigate(`/admin/reclamations/details/${reclamation.id}`)
+      },
+    });
 
     actions.push({
       label: "Supprimer",
@@ -141,7 +192,7 @@ export default function ReclamationsPage() {
   };
 
   return (
-    <PageLitLayout title="Gestion des réclamations">
+    <PageLitLayout title="">
       <div className="px-6 py-4 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -152,22 +203,18 @@ export default function ReclamationsPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
               <p className="text-xs text-blue-700/70">Total</p>
               <p className="text-2xl font-bold text-blue-700">{stats.total}</p>
-            </div>
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4">
-              <p className="text-xs text-gray-700/70">Brouillon</p>
-              <p className="text-2xl font-bold text-gray-700">{stats.brouillon}</p>
             </div>
             <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4">
               <p className="text-xs text-yellow-700/70">Soumise</p>
               <p className="text-2xl font-bold text-yellow-700">{stats.soumise}</p>
             </div>
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
-              <p className="text-xs text-blue-700/70">En cours</p>
-              <p className="text-2xl font-bold text-blue-700">{stats.en_cours}</p>
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
+              <p className="text-xs text-purple-700/70">En cours</p>
+              <p className="text-2xl font-bold text-purple-700">{stats.en_cours}</p>
             </div>
             <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4">
               <p className="text-xs text-green-700/70">Résolue</p>
@@ -214,7 +261,6 @@ export default function ReclamationsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 >
                   <option value="">Tous</option>
-                  <option value="brouillon">Brouillon</option>
                   <option value="soumise">Soumise</option>
                   <option value="en_cours">En cours</option>
                   <option value="resolue">Résolue</option>

@@ -7,17 +7,15 @@ import DeleteConfirmationModal from "../../components/ui/DeleteConfirmationModal
 import MenuModal, { Menu } from "../../components/ui/MenuModal";
 import useReclamations from "../../hooks/reclamations/useReclamations";
 import { alertSuccess, alertError } from "../../helpers/alertError";
-import useToken from "../../hooks/auth/useToken";
 import ReclamationsList from "../../components/features/reclamations/ReclamationsList";
 import { useAuth } from "../../hooks/auth/useAuth";
 import { Reclamation } from "../../types/Reclamation";
 
-export default function ClientReclamationsPage() {
+export default function UserReclamationsPage() {
   const navigate = useNavigate();
-  const { token } = useToken();
   const { user } = useAuth();
-  const { data: reclamations, loading, refresh } = useReclamations({ 
-    filters: { clientId: user?.id } 
+  const { data: reclamations, loading, refresh, deleteItem: deleteReclamation } = useReclamations({
+    filters: { userId: user?.id }
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatut, setSelectedStatut] = useState<string>("");
@@ -64,16 +62,11 @@ export default function ClientReclamationsPage() {
     setIsDeleting(true);
     try {
       const id = reclamationToDelete.id || reclamationToDelete._id || "";
-      const response = await fetch(`/api/reclamations/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setReclamationToDelete(null);
-        alertSuccess("Réclamation supprimée");
-        if (typeof refresh === "function") {
-          await refresh();
-        }
+      await deleteReclamation(id);
+      setReclamationToDelete(null);
+      alertSuccess("Réclamation supprimée");
+      if (typeof refresh === "function") {
+        await refresh();
       }
     } catch (error) {
       console.error(error);
@@ -93,19 +86,13 @@ export default function ClientReclamationsPage() {
   const getActionsMenu = (reclamation: Reclamation): Menu[] => {
     const actions: Menu[] = [];
 
-    if (reclamation.statut === "brouillon") {
+    if (reclamation.statut === "soumise") {
       actions.push({
         label: "Modifier",
         icon: Eye,
-        onClick: () => navigate(`/client/reclamations/${reclamation.id}/edit`),
+        onClick: () => navigate(`/${user?.role}/reclamations/${reclamation.id}/update`),
       });
-      actions.push({
-        label: "Soumettre",
-        icon: FileText,
-        onClick: () => {
-          // TODO: Appeler l'API pour soumettre
-        },
-      });
+     
     }
 
     if (reclamation.statut === "brouillon" || reclamation.statut === "soumise") {
@@ -120,7 +107,7 @@ export default function ClientReclamationsPage() {
       actions.push({
         label: "Voir détails",
         icon: Eye,
-        onClick: () => navigate(`/client/reclamations/${reclamation.id}`),
+        onClick: () => navigate(`/${user?.role}/reclamations/${reclamation.id}`),
       });
     }
 
@@ -128,7 +115,7 @@ export default function ClientReclamationsPage() {
   };
 
   return (
-    <PageLitLayout title="Mes réclamations">
+    <PageLitLayout title="">
       <div className="px-6 py-4 bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -137,7 +124,7 @@ export default function ClientReclamationsPage() {
               <p className="text-sm text-gray-500 mt-1">Gérez toutes vos réclamations</p>
             </div>
             <button
-              onClick={() => navigate("/client/reclamations/new")}
+              onClick={() => navigate(`/${user?.role}/reclamations/new`)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition"
             >
               <Plus size={18} />
