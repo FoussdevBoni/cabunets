@@ -5,7 +5,7 @@ import { reclamationService } from '../services/reclamationService';
 export const createReclamation = async (req: Request, res: Response): Promise<Response> => {
   try {
     const {
-      clientId,
+      userId,
       reference,
       objet,
       description,
@@ -13,8 +13,8 @@ export const createReclamation = async (req: Request, res: Response): Promise<Re
       attachements,
     } = req.body;
 
-    if (!clientId) {
-      return res.status(400).json({ error: 'Le clientId est obligatoire' });
+    if (!userId) {
+      return res.status(400).json({ error: 'Le userId est obligatoire' });
     }
 
     if (!objet) {
@@ -22,7 +22,8 @@ export const createReclamation = async (req: Request, res: Response): Promise<Re
     }
 
     const reclamation = await reclamationService.createReclamation({
-      clientId,
+      userId,
+      user: userId,
       reference,
       objet,
       description,

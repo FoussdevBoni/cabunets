@@ -3,15 +3,15 @@ import Reclamation, { IReclamation } from "../models/Reclamation";
 
 export const reclamationService = {
   async getReclamations(query: any): Promise<IReclamation[]> {
-    return await Reclamation.find(query).sort({ createdAt: -1 });
+    return await Reclamation.find(query).sort({ createdAt: -1 }).populate("user");
   },
 
   async getAllReclamations(): Promise<IReclamation[]> {
-    return await Reclamation.find().sort({ createdAt: -1 });
+    return await Reclamation.find().sort({ createdAt: -1 }).populate("user");
   },
 
   async getReclamationById(id: string): Promise<IReclamation | null> {
-    return await Reclamation.findById(id);
+    return await Reclamation.findById(id).populate("user");
   },
 
   async createReclamation(data: Partial<IReclamation>): Promise<IReclamation> {
@@ -36,11 +36,11 @@ export const reclamationService = {
   },
 
   async getReclamationsByClient(clientId: string): Promise<IReclamation[]> {
-    return await Reclamation.find({ clientId }).sort({ createdAt: -1 });
+    return await Reclamation.find({ clientId }).sort({ createdAt: -1 }).populate("user");
   },
 
   async getReclamationsByStatut(statut: string): Promise<IReclamation[]> {
-    return await Reclamation.find({ statut }).sort({ createdAt: -1 });
+    return await Reclamation.find({ statut }).sort({ createdAt: -1 }).populate("user");
   },
 
   async getReclamationsByDateRange(startDate: Date, endDate: Date): Promise<IReclamation[]> {
@@ -49,7 +49,7 @@ export const reclamationService = {
         $gte: startDate,
         $lte: endDate,
       },
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 }).populate("user");
   },
 
   async getTodayReclamations(): Promise<IReclamation[]> {
@@ -63,7 +63,7 @@ export const reclamationService = {
         $gte: today,
         $lt: tomorrow,
       },
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 }).populate("user");
   },
 
   async getStats(): Promise<any> {

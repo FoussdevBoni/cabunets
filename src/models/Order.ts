@@ -1,3 +1,4 @@
+// models/Order.ts
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
@@ -22,7 +23,6 @@ export interface IOrder extends Document {
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   depositPaymentStatus?: string;
   
-  // Champs pour la notification WhatsApp
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
   whatsappProcessing?: boolean;
@@ -70,7 +70,6 @@ const OrderSchema = new Schema<IOrder>(
     },
     depositPaymentStatus: { type: String },
     
-    // ✅ CHAMPS POUR LA NOTIFICATION WHATSAPP
     whatsappSent: { 
       type: Boolean, 
       default: false 
@@ -93,17 +92,20 @@ const OrderSchema = new Schema<IOrder>(
       type: Date 
     },
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
 
-// ✅ INDEX POUR OPTIMISER LES RECHERCHES
-// Index pour trouver les commandes en attente de notification
+// Virtual pour la référence - NON STOCKÉ EN BASE
+OrderSchema.virtual('reference').get(function() {
+  return `ORD-${this._id.toString().slice(-8).toUpperCase()}`;
+});
+
 OrderSchema.index({ status: 1, whatsappSent: 1, whatsappProcessing: 1 });
-
-// Index pour nettoyer les verrous bloqués
 OrderSchema.index({ whatsappProcessing: 1, whatsappProcessingAt: 1 });
-
-// Index pour les recherches par depositId
 OrderSchema.index({ depositId: 1 });
 
 export const Order = mongoose.model<IOrder>("Order", OrderSchema);

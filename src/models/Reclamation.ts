@@ -1,27 +1,38 @@
 // models/Reclamation.ts
 import mongoose, { Schema, Document } from "mongoose";
 
+export interface LinkedEntity {
+  type: 'vendeur' | 'order' | 'offer' | 'client';
+  id: string;
+}
+
 export interface IReclamation extends Document {
-  clientId: string;
+  userId: string;
+  user: mongoose.Types.ObjectId;
   reference?: string;
   objet: string;
   description?: string;
-  statut: 'brouillon' | 'soumise' | 'en_cours' | 'resolue' | 'rejetee';
+  statut: 'soumise' | 'en_cours' | 'resolue' | 'rejetee';
   attachements?: string[];
+  linkedEntities?: LinkedEntity[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 const ReclamationSchema = new Schema<IReclamation>(
   {
-    clientId: {
+    userId: {
       type: String,
       required: true,
       index: true,
     },
-    reference: {
-      type: String,
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
+  
     objet: {
       type: String,
       required: true,
@@ -31,17 +42,37 @@ const ReclamationSchema = new Schema<IReclamation>(
     },
     statut: {
       type: String,
-      enum: ['brouillon', 'soumise', 'en_cours', 'resolue', 'rejetee'],
-      default: 'brouillon',
+      enum: ['soumise', 'en_cours', 'resolue', 'rejetee'],
+      default: 'soumise',
       required: true,
     },
     attachements: {
       type: [String],
     },
+    linkedEntities: {
+      type: [{
+        type: {
+          type: String,
+          enum: ['vendeur', 'order', 'offer', 'client'],
+          required: true,
+        },
+        id: {
+          type: String,
+          required: true,
+        }
+      }],
+      default: [],
+    }
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+ReclamationSchema.virtual('reference').get(function() {
+  return `REC-${this._id.toString().slice(-8).toUpperCase()}`;
+});
 
 export default mongoose.model<IReclamation>("Reclamation", ReclamationSchema);
