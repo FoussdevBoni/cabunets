@@ -11,6 +11,12 @@ export interface OrderNotificationData {
   customerPhone: string;
 }
 
+export interface AnnonceData {
+  whatsappNumber: string;
+  body: string;
+  title: string
+}
+
 export class CabupayWhatsappService {
   private readonly baseUrl: string;
 
@@ -70,6 +76,51 @@ export class CabupayWhatsappService {
       return false;
     }
   }
+
+  async notifyAnnonce(data: AnnonceData): Promise<boolean> {
+    try {
+      const payload = {
+        to: data.whatsappNumber,
+        templateName: 'hello_world',
+        headerVariables: {
+          title: data.title,
+        },
+        bodyVariables: {
+          body: data.body
+        },
+        languageCode: 'en',
+      };
+
+      const response = await axios.post(
+        `${this.baseUrl}/whatsapp/send`, // <-- Corrected path to /v1
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data?.success) {
+        console.log(
+          `✅ Notification WhatsApp envoyée à ${data.whatsappNumber} (${data.title})`
+        );
+        return true;
+      }
+
+      console.warn("⚠️ Réponse inattendue de l'API WhatsApp:", response.data);
+      return false;
+    } catch (error: any) {
+      console.error(
+        '❌ Échec envoi notification WhatsApp via Cabupay:',
+        error.response?.data || error.message
+      );
+      throw error
+    }
+  }
+
+
 }
 
 export const cabupayWhatsappService = new CabupayWhatsappService();
