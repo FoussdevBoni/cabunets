@@ -8,6 +8,8 @@ import ClientProfilePage from '../pages/client/ClientProfilePage';
 import ClientReclamationsPage from '../pages/user/ReclamationsPage';
 import NewReclamationPage from '../pages/user/NewReclamationPage';
 import UpdateReclamationPage from '../pages/user/UpdateReclamationPage';
+import UserNotificationsPage from '../pages/user/NotificationsPage';
+import UserNotificationDetailsPage from '../pages/user/NotificationDetailsPage';
 
 
 const MainRoutes = () => {
@@ -19,7 +21,8 @@ const MainRoutes = () => {
                 <Route path="/achats" element={<ClientOrdersPage />} />
                 <Route path="/profile" element={<ClientProfilePage />} />
                 <Route path="/reclamations" element={<ClientReclamationsPage />} />
-
+                <Route path="/notifications" element={<UserNotificationsPage />} />
+                <Route path="/notifications/details/:id" element={<UserNotificationDetailsPage />} />
 
                 <Route path="*" element={<NotFoundPage />} />
 
@@ -33,9 +36,8 @@ function ClientNav() {
         <Routes>
 
             <Route path="/*" element={<MainRoutes />} />
-                <Route path="/reclamations/new" element={<NewReclamationPage />} />
-                <Route path="/reclamations/:id/update" element={<UpdateReclamationPage />} />
-
+            <Route path="/reclamations/new" element={<NewReclamationPage />} />
+            <Route path="/reclamations/:id/update" element={<UpdateReclamationPage />} />
 
 
 

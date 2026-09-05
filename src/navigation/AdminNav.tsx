@@ -14,6 +14,9 @@ import WalletsPage from '../pages/admin/WalletsPage';
 import RetraitsPage from '../pages/admin/RetraitsPage';
 import ReclamationsPage from '../pages/admin/ReclamationsPage';
 import ReclamationsDetailsPage from '../pages/admin/ReclamationsDetailsPage';
+import NotificationsPage from '../pages/admin/NotificationsPage';
+import NewNotificationPage from '../pages/admin/NewNotificationPage';
+import UpdateNotificationPage from '../pages/admin/UpdateNotificationPage';
 
 
 const MainRoutes = () => {
@@ -36,6 +39,10 @@ const MainRoutes = () => {
         <Route path="/reclamations" element={<ReclamationsPage />} />
         <Route path="/reclamations/details/:id" element={<ReclamationsDetailsPage />} />
 
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/notifications/new" element={<NewNotificationPage />} />
+
+        <Route path="/notifications/edit/:id" element={<UpdateNotificationPage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
 

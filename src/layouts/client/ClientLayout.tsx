@@ -8,10 +8,12 @@ import {
     LogOut,
     LayoutDashboard,
     Package,
-    MessageCircle
+    MessageCircle,
+    Bell
 } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/auth/useAuth';
+import useNotifications from '../../hooks/notifications/useNotifications';
 
 interface NavItem {
     id: string;
@@ -29,10 +31,11 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [screenSize, setScreenSize] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const { user, logout } = useAuth();
 
+    const { unreadCount } = useNotifications({ filters: { receiver: user?.id } });
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -42,6 +45,8 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
         if (path.includes('/dashboard')) return 'dashboard';
         if (path.includes('/achats')) return 'achats';
         if (path.includes('/profile')) return 'profile';
+        if (path.includes('/reclamations')) return 'reclamations';
+        if (path.includes('/notifications')) return 'notifications';
         return 'dashboard';
     };
 
@@ -70,7 +75,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
             iconActive: MessageCircle,
 
         },
-
+        
         {
             id: 'profile',
             title: 'Profil',
@@ -136,6 +141,18 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                 </Link>
 
                 <div className="flex items-center space-x-3">
+                    <button
+                        onClick={() => navigate('/client/notifications')}
+                        className="relative p-2 hover:bg-gray-100 rounded-full transition"
+                    >
+                        <Bell className="w-5 h-5 text-gray-600" />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                        )}
+                    </button>
+
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -199,7 +216,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                         <button
                             key={item.id}
                             onClick={() => handleNavClick(item.route)}
-                            className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[60px] ${isActive
+                            className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[60px] relative ${isActive
                                 ? 'text-primary bg-primary/10'
                                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                 }`}
@@ -233,7 +250,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                 <button
                                     key={item.id}
                                     onClick={() => handleNavClick(item.route)}
-                                    className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[70px] ${isActive
+                                    className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors min-w-[70px] relative ${isActive
                                         ? 'text-primary bg-primary/10'
                                         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                         }`}
@@ -247,6 +264,18 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
 
                     {/* Actions */}
                     <div className="flex items-center space-x-3 flex-shrink-0">
+                        <button
+                            onClick={() => navigate('/client/notifications')}
+                            className="relative p-2 hover:bg-gray-100 rounded-full transition"
+                        >
+                            <Bell className="w-5 h-5 text-gray-600" />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -334,7 +363,7 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
                                     <button
                                         key={item.id}
                                         onClick={() => handleNavClick(item.route)}
-                                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium ${isActive
+                                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors font-medium relative ${isActive
                                             ? 'text-primary bg-primary/10'
                                             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                             }`}
@@ -349,6 +378,18 @@ const ClientLayout = ({ children }: ClientLayoutProps) => {
 
                     {/* Actions desktop */}
                     <div className="flex items-center space-x-4">
+                        <button
+                            onClick={() => navigate('/client/notifications')}
+                            className="relative p-2 hover:bg-gray-100 rounded-full transition"
+                        >
+                            <Bell className="w-5 h-5 text-gray-600" />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </span>
+                            )}
+                        </button>
+
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}

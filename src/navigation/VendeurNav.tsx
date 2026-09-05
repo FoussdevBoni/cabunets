@@ -14,6 +14,8 @@ import UpdateRetraitPage from '../pages/vendeur/UpdateRetraitPage';
 import UserReclamationsPage from '../pages/user/ReclamationsPage';
 import NewReclamationPage from '../pages/user/NewReclamationPage';
 import UpdateReclamationPage from '../pages/user/UpdateReclamationPage';
+import UserNotificationsPage from '../pages/user/NotificationsPage';
+import UserNotificationDetailsPage from '../pages/user/NotificationDetailsPage';
 
 
 const MainRoutes = () => {
@@ -26,6 +28,9 @@ const MainRoutes = () => {
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/retraits" element={<RetraitsPage />} />
                 <Route path="/reclamations" element={<UserReclamationsPage />} />
+                <Route path="/notifications" element={<UserNotificationsPage />} />
+                <Route path="/notifications/details/:id" element={<UserNotificationDetailsPage />} />
+
 
 
                 <Route path="*" element={<NotFoundPage />} />
