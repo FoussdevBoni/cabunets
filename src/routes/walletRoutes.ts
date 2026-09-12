@@ -4,14 +4,22 @@ import {
   getWallet,
   checkRetrait,
   getAllWallets,
-  getCabunetWallet
+  getCabunetWallet,
+  getPawaPayBalances,
+  getPawaPayBalancesByCountry,
+  getPawaPayBalanceByCurrency,
 } from "../controllers/walletController";
 
 const router = express.Router();
 
-// ✅ Route spécifique d'abord
+// ✅ Routes spécifiques d'abord
 router.get("/all", getAllWallets);
 router.get("/cabunet", getCabunetWallet);
+
+// ✅ Soldes PawaPay
+router.get("/pawapay/balances", getPawaPayBalances);
+router.get("/pawapay/balances/:country", getPawaPayBalancesByCountry);
+router.get("/pawapay/balances/:country/:currency", getPawaPayBalanceByCurrency);
 
 // ✅ Route dynamique après
 router.get("/:vendeurId", getWallet);

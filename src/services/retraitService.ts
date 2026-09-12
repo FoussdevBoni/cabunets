@@ -259,7 +259,7 @@ export const retraitService = {
           `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${retrait.amount}`
         );
       }
-    }
+    } 
 
     return await Retrait.findByIdAndUpdate(
       id,

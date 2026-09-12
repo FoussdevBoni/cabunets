@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { WalletService } from "../services/walletService";
 import { CurrencyService } from "../services/currencyService";
+import { cabupayBalanceService } from "../services/cabupayBalanceService";
 
 const walletService = new WalletService();
 const currencyService = new CurrencyService();
@@ -162,10 +163,7 @@ export const updateDefaultDisplayCurrency = async (req: Request, res: Response) 
       message: error.message
     });
   }
-
-
 };
-
 
 /**
  * GET /api/wallet/all
@@ -187,19 +185,102 @@ export const getAllWallets = async (req: Request, res: Response) => {
   }
 };
 
-
 /**
  * GET /api/wallet/commission-solde
  * Récupère le solde commission de la plateforme
  */
 export const getCabunetWallet = async (req: Request, res: Response) => {
-
   try {
     const solde = await walletService.getCabunetWallet();
 
     return res.status(200).json({
       success: true,
       data: solde
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * GET /api/wallet/pawapay/balances
+ * Récupère tous les soldes PawaPay via Cabupay
+ */
+export const getPawaPayBalances = async (req: Request, res: Response) => {
+  try {
+    const balances = await cabupayBalanceService.getAllBalances();
+
+    return res.status(200).json({
+      success: true,
+      data: balances
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * GET /api/wallet/pawapay/balances/:country
+ * Récupère les soldes PawaPay pour un pays spécifique
+ */
+export const getPawaPayBalancesByCountry = async (req: Request, res: Response) => {
+  try {
+    const { country } = req.params;
+
+    if (!country) {
+      return res.status(400).json({
+        success: false,
+        message: "Le code pays est requis (ex: COD)"
+      });
+    }
+
+    const balances = await cabupayBalanceService.getBalancesByCountry(country);
+
+    return res.status(200).json({
+      success: true,
+      data: balances
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * GET /api/wallet/pawapay/balances/:country/:currency
+ * Récupère le solde PawaPay d'une devise spécifique dans un pays
+ */
+export const getPawaPayBalanceByCurrency = async (req: Request, res: Response) => {
+  try {
+    const { country, currency } = req.params;
+
+    if (!country || !currency) {
+      return res.status(400).json({
+        success: false,
+        message: "Le code pays et la devise sont requis"
+      });
+    }
+
+    const balance = await cabupayBalanceService.getBalanceByCurrency(country, currency);
+
+    if (!balance) {
+      return res.status(404).json({
+        success: false,
+        message: `Aucun wallet trouvé pour ${country} en ${currency}`
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: balance
     });
   } catch (error: any) {
     return res.status(500).json({
