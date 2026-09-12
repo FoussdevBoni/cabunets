@@ -109,5 +109,55 @@ export const walletService = {
     } catch (error: any) {
       throw error.response?.data || error.message;
     }
-  }
+  },
+
+  /**
+   * Récupère le solde commission de la plateforme
+   */
+  async getCabunetWallet() {
+    try {
+      const response = await axios.get(`${API_URL}/wallet/cabunet`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Récupère tous les soldes PawaPay
+   */
+  async getPawaPayBalances() {
+    try {
+      const response = await axios.get(`${API_URL}/wallet/pawapay/balances`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Récupère les soldes PawaPay pour un pays spécifique
+   */
+  async getPawaPayBalancesByCountry(country: string) {
+    try {
+      const response = await axios.get(`${API_URL}/wallet/pawapay/balances/${country}`);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Récupère le solde PawaPay d'une devise spécifique dans un pays
+   */
+  async getPawaPayBalanceByCurrency(country: string, currency: string) {
+    try {
+      const response = await axios.get(
+        `${API_URL}/wallet/pawapay/balances/${country}/${currency}`
+      );
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
 };

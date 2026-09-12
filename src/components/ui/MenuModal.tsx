@@ -6,6 +6,7 @@ export interface Menu {
   label: string;
   icon: LucideIcon;
   onClick: () => void;
+  disabled?: boolean;
 }
 
 interface MenuModalProps {
@@ -26,10 +27,16 @@ export default function MenuModal({ menu, isOpen, onClose, title, icon }: MenuMo
             <button
               key={index}
               onClick={() => {
+                if (item.disabled) return;
                 item.onClick();
                 onClose();
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-0"
+              disabled={item.disabled}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-100 last:border-0 ${
+                item.disabled
+                  ? "opacity-50 cursor-not-allowed"
+                  : "hover:bg-gray-100"
+              }`}
             >
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                 <IconComponent size={18} className="text-primary" />

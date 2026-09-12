@@ -3,7 +3,7 @@ import { dataService, QueryFilters } from '../../services/dataService'
 import { useData } from '../data/useData'
 import axios from 'axios'
 import { API_URL } from '../../utils/api'
-import { Retrait } from '../../types/Retrait'
+import { BaseRetrait, Retrait, RetraitInitiationResponse } from '../../types/Retrait'
 
 export const baseService = dataService<Retrait>('retraits')
 
@@ -32,6 +32,28 @@ export const retraitsService = {
         } catch (error: any) {
             console.error(
                 '[retraitsService] Erreur traitRetrait:',
+                error?.response?.data || error.message
+            )
+            throw error
+        }
+    },
+
+    retirerCommission: async (data: BaseRetrait, token: string): Promise<RetraitInitiationResponse> => {
+        try {
+            const response = await axios.post(
+                `${API_URL}/retraits/retirer-commission`,
+                data,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+
+            return response.data
+        } catch (error: any) {
+            console.error(
+                '[retraitsService] Erreur retirerCommission:',
                 error?.response?.data || error.message
             )
             throw error
@@ -125,6 +147,70 @@ export const retraitsService = {
         } catch (error: any) {
             console.error(
                 '[retraitsService] Erreur getRetraitsStats:',
+                error?.response?.data || error.message
+            )
+            throw error
+        }
+    },
+
+    getPayout: async (token: string, referenceOrId: string): Promise<any> => {
+        try {
+            const response = await axios.get(
+                `${API_URL}/retraits/payout/${referenceOrId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+
+            return response.data
+        } catch (error: any) {
+            console.error(
+                '[retraitsService] Erreur getPayout:',
+                error?.response?.data || error.message
+            )
+            throw error
+        }
+    },
+
+    getPayoutDirect: async (token: string, payoutId: string): Promise<any> => {
+        try {
+            const response = await axios.get(
+                `${API_URL}/retraits/payout/direct/${payoutId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+
+            return response.data
+        } catch (error: any) {
+            console.error(
+                '[retraitsService] Erreur getPayoutDirect:',
+                error?.response?.data || error.message
+            )
+            throw error
+        }
+    },
+
+    resendPayoutCallback: async (token: string, payoutId: string): Promise<any> => {
+        try {
+            const response = await axios.post(
+                `${API_URL}/retraits/resend-callback`,
+                { payoutId },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+
+            return response.data
+        } catch (error: any) {
+            console.error(
+                '[retraitsService] Erreur resendPayoutCallback:',
                 error?.response?.data || error.message
             )
             throw error

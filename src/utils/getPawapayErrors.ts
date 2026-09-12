@@ -14,6 +14,11 @@ export const pawaPayErrors = [
     error: "INVALID_PHONE_NUMBER",
     traduction: "Le numéro de téléphone n'est pas au format MSISDN valide."
   },
+   {
+    error: "INVALID_PAYER_FORMAT",
+    traduction: "Seuls les chiffres sont acceptés. Aucun espace, séparateur ou préfixe tel que + ou 0 n’est autorisé."
+  },
+  
   {
     error: "INVALID_PROVIDER",
     traduction: "Le provider spécifié n'est pas valide pour cette requête."

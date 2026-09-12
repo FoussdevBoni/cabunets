@@ -1,6 +1,6 @@
 // pages/RetraitsPage.tsx
 import { useState, useMemo } from "react";
-import { Search, X, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Search, X, CheckCircle, XCircle, RefreshCw, Eye } from "lucide-react";
 import PageLitLayout from "../../layouts/PageListLayout";
 import DeleteConfirmationModal from "../../components/ui/DeleteConfirmationModal";
 import MenuModal, { Menu } from "../../components/ui/MenuModal";
@@ -9,6 +9,7 @@ import { alertSuccess, alertError, getErrorMessage } from "../../helpers/alertEr
 import useToken from "../../hooks/auth/useToken";
 import RetraitsList from "../../components/features/retraits/RetraitsList";
 import { Retrait } from "../../types/Retrait";
+import { useNavigate } from "react-router-dom";
 
 export default function RetraitsPage() {
   const { token } = useToken();
@@ -17,10 +18,9 @@ export default function RetraitsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [selectedRetrait, setSelectedRetrait] = useState<Retrait | null>(null);
   const [retraitToDelete, setRetraitToDelete] = useState<Retrait | null>(null);
-  const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-
+  const navigate  = useNavigate()
   // Statistiques
   const stats = useMemo(() => {
     const list = retraits || [];
@@ -59,7 +59,7 @@ export default function RetraitsPage() {
     setIsProcessing(true);
     try {
       const response = await retraitsService.validateRetrait(token, id);
-      
+
       if (response.success) {
         alertSuccess("Retrait validé avec succès");
         await refresh();
@@ -79,7 +79,7 @@ export default function RetraitsPage() {
     setIsProcessing(true);
     try {
       const response = await retraitsService.rejectRetrait(token, id, reason);
-      
+
       if (response.success) {
         alertSuccess("Retrait rejeté avec succès");
         await refresh();
@@ -94,19 +94,45 @@ export default function RetraitsPage() {
     }
   };
 
+  const handleResendCallback = async (retrait: Retrait) => {
+    const payoutId = retrait.payoutId || retrait.id || retrait._id || "";
+
+    if (!payoutId) {
+      alertError("Aucun payoutId disponible pour ce retrait");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await retraitsService.resendPayoutCallback(token, payoutId);
+
+      if (response.success) {
+        alertSuccess("Callback renvoyé avec succès. Le statut sera mis à jour prochainement.");
+        await refresh();
+        setSelectedRetrait(null);
+      } else {
+        alertError(response.message || "Erreur lors du renvoi du callback");
+      }
+    } catch (error: any) {
+      alertError(getErrorMessage(error) || "Erreur lors du renvoi du callback");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!retraitToDelete) return;
     setIsDeleting(true);
     try {
       const id = retraitToDelete.id || retraitToDelete._id || "";
       const response = await retraitsService.delete(id);
-      
+
       if (response) {
         setRetraitToDelete(null);
         alertSuccess("Retrait supprimé");
         await refresh();
       } else {
-        alertError( "Erreur lors de la suppression");
+        alertError("Erreur lors de la suppression");
       }
     } catch (error: any) {
       alertError(getErrorMessage(error) || "Erreur lors de la suppression");
@@ -114,7 +140,6 @@ export default function RetraitsPage() {
       setIsDeleting(false);
     }
   };
-
 
   const clearFilters = () => {
     setSelectedStatus("");
@@ -126,12 +151,12 @@ export default function RetraitsPage() {
   const getActionsMenu = (retrait: Retrait): Menu[] => {
     const actions: Menu[] = [];
 
-    // Actions selon le statut
     if (retrait.status?.toUpperCase() === "PENDING") {
       actions.push({
         label: "Valider",
         icon: CheckCircle,
         onClick: () => handleValidate(retrait),
+        disabled: isProcessing,
       });
       actions.push({
         label: "Rejeter",
@@ -142,15 +167,28 @@ export default function RetraitsPage() {
             handleReject(retrait, reason);
           }
         },
+        disabled: isProcessing,
       });
     }
 
-    actions.push({
-      label: "Supprimer",
-      icon: X,
-      onClick: () => setRetraitToDelete(retrait),
-    });
+    if (retrait.payoutId && retrait.status?.toUpperCase() === "PENDING") {
+      actions.push({
+        label: "Renvoyer le callback",
+        icon: RefreshCw,
+        onClick: () => handleResendCallback(retrait),
+        disabled: isProcessing,
+      });
+    }
 
+      actions.push({
+        label: "Voir les details",
+        icon: Eye,
+        onClick: () => {
+          navigate(`/admin/retraits/details/${retrait._id || retrait.id}`)
+        },
+      });
+
+  
     return actions;
   };
 
@@ -245,15 +283,6 @@ export default function RetraitsPage() {
             <RetraitsList
               retraits={filteredRetraits}
               onAction={(retrait) => setSelectedRetrait(retrait)}
-              onSelectRetraits={(selected) => setItemsToDelete(selected.map((r) => r.id || r._id || ""))}
-              selectable={false}
-              selectActions={[
-                {
-                  label: "Supprimer",
-                  onClick: (selected) => setItemsToDelete(selected.map((r) => r.id || r._id || "")),
-                  className: "bg-red-600 text-white",
-                },
-              ]}
             />
           </>
         )}
@@ -270,7 +299,7 @@ export default function RetraitsPage() {
         />
       )}
 
-      {/* Modals suppression */}
+      {/* Modal suppression */}
       <DeleteConfirmationModal
         isOpen={!!retraitToDelete}
         onClose={() => setRetraitToDelete(null)}
@@ -279,8 +308,6 @@ export default function RetraitsPage() {
         message={`Supprimer le retrait de "${retraitToDelete?.methodPayment?.intitule || 'vendeur'}" ?`}
         confirmText={isDeleting ? "Suppression..." : "Supprimer"}
       />
-
-     
     </PageLitLayout>
   );
 }

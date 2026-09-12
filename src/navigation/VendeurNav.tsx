@@ -16,6 +16,7 @@ import NewReclamationPage from '../pages/user/NewReclamationPage';
 import UpdateReclamationPage from '../pages/user/UpdateReclamationPage';
 import UserNotificationsPage from '../pages/user/NotificationsPage';
 import UserNotificationDetailsPage from '../pages/user/NotificationDetailsPage';
+import RetraitDetailsPage from '../pages/user/RetraitDetailsPage';
 
 
 const MainRoutes = () => {
@@ -27,6 +28,8 @@ const MainRoutes = () => {
                 <Route path="/offres" element={<OffresPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/retraits" element={<RetraitsPage />} />
+                <Route path="/retraits/details/:id" element={<RetraitDetailsPage />} />
+
                 <Route path="/reclamations" element={<UserReclamationsPage />} />
                 <Route path="/notifications" element={<UserNotificationsPage />} />
                 <Route path="/notifications/details/:id" element={<UserNotificationDetailsPage />} />

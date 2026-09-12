@@ -17,6 +17,8 @@ import ReclamationsDetailsPage from '../pages/admin/ReclamationsDetailsPage';
 import NotificationsPage from '../pages/admin/NotificationsPage';
 import NewNotificationPage from '../pages/admin/NewNotificationPage';
 import UpdateNotificationPage from '../pages/admin/UpdateNotificationPage';
+import NewRetraitPage from '../pages/vendeur/NewRetraitPage';
+import RetraitDetailsPage from '../pages/user/RetraitDetailsPage';
 
 
 const MainRoutes = () => {
@@ -36,6 +38,7 @@ const MainRoutes = () => {
         <Route path="/settings" element={<AdminSettingsPage />} />
         <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/retraits" element={<RetraitsPage />} />
+        <Route path="/retraits/details/:id" element={<RetraitDetailsPage />} />
         <Route path="/reclamations" element={<ReclamationsPage />} />
         <Route path="/reclamations/details/:id" element={<ReclamationsDetailsPage />} />
 
@@ -43,6 +46,7 @@ const MainRoutes = () => {
         <Route path="/notifications/new" element={<NewNotificationPage />} />
 
         <Route path="/notifications/edit/:id" element={<UpdateNotificationPage />} />
+        <Route path="/nouveau-retrait" element={<NewRetraitPage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
 

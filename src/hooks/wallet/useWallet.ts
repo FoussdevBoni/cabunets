@@ -1,8 +1,8 @@
 // hooks/useWallet.ts
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { walletService } from '../../services/walletService';
 
-interface IWalletInfo {
+export interface IWalletInfo {
   vendeurId: string;
   vendeur?: {
     id: string;
@@ -38,13 +38,33 @@ interface IWalletInfo {
   };
 }
 
+export interface ICabunetWallet {
+  generee: number;
+  retiree: number;
+  disponible: number;
+  currency: string;
+}
+
+export interface IPawaPayBalance {
+  country: string;
+  balance: string;
+  currency: string;
+}
+
 interface IUseWalletReturn {
   wallet: IWalletInfo | null;
   wallets: IWalletInfo[];
+  cabunetWallet: ICabunetWallet | null;
+  pawaPayBalances: IPawaPayBalance[];
+  pawaPayBalance: IPawaPayBalance | null;
   loading: boolean;
   error: string | null;
   getWallet: (vendeurId: string) => Promise<void>;
+  getCabunetWallet: () => Promise<void>;
   getAllWallets: () => Promise<void>;
+  getPawaPayBalances: () => Promise<void>;
+  getPawaPayBalancesByCountry: (country: string) => Promise<void>;
+  getPawaPayBalanceByCurrency: (country: string, currency: string) => Promise<void>;
   verifierRetrait: (vendeurId: string, amount: number, currency?: string) => Promise<any>;
   getCAEvolution: (vendeurId: string, periode?: "day" | "week" | "month") => Promise<any>;
   getHistoriqueRetraits: (vendeurId: string, limit?: number) => Promise<any>;
@@ -54,6 +74,9 @@ interface IUseWalletReturn {
 export default function useWallet(): IUseWalletReturn {
   const [wallet, setWallet] = useState<IWalletInfo | null>(null);
   const [wallets, setWallets] = useState<IWalletInfo[]>([]);
+  const [cabunetWallet, setCabunetWallet] = useState<ICabunetWallet | null>(null);
+  const [pawaPayBalances, setPawaPayBalances] = useState<IPawaPayBalance[]>([]);
+  const [pawaPayBalance, setPawaPayBalance] = useState<IPawaPayBalance | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +93,21 @@ export default function useWallet(): IUseWalletReturn {
     }
   }, []);
 
+  const getCabunetWallet = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    console.log("Je tourne bro")
+    try {
+      const response = await walletService.getCabunetWallet();
+      setCabunetWallet(response.data);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement du solde de commissions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const getAllWallets = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -78,6 +116,45 @@ export default function useWallet(): IUseWalletReturn {
       setWallets(response.data);
     } catch (err: any) {
       setError(err.message || 'Erreur lors du chargement des wallets');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getPawaPayBalances = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await walletService.getPawaPayBalances();
+      setPawaPayBalances(response?.data?.data?.balances || []);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement des soldes PawaPay');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getPawaPayBalancesByCountry = useCallback(async (country: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await walletService.getPawaPayBalancesByCountry(country);
+      setPawaPayBalances(response.data);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement des soldes PawaPay');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getPawaPayBalanceByCurrency = useCallback(async (country: string, currency: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await walletService.getPawaPayBalanceByCurrency(country, currency);
+      setPawaPayBalance(response.data);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors du chargement du solde PawaPay');
     } finally {
       setLoading(false);
     }
@@ -129,13 +206,27 @@ export default function useWallet(): IUseWalletReturn {
     setError(null);
   }, []);
 
+  useEffect(() => {
+    getCabunetWallet();
+    getPawaPayBalances();
+    getAllWallets();
+  }, [getCabunetWallet, getAllWallets, getPawaPayBalances])
+
   return {
     wallet,
     wallets,
+    cabunetWallet,
+    pawaPayBalances,
+    pawaPayBalance,
     loading,
     error,
     getWallet,
+
+    getCabunetWallet,
     getAllWallets,
+    getPawaPayBalances,
+    getPawaPayBalancesByCountry,
+    getPawaPayBalanceByCurrency,
     verifierRetrait,
     getCAEvolution,
     getHistoriqueRetraits,

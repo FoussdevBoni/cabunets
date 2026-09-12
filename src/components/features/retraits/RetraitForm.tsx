@@ -1,7 +1,7 @@
 // components/retraits/RetraitForm.tsx
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { X, Send, Loader2, Wallet } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { X, Send, Loader2, Wallet, AlertTriangle } from "lucide-react";
 import { alertSuccess, alertError } from "../../../helpers/alertError";
 import useToken from "../../../hooks/auth/useToken";
 import { retraitsService } from "../../../hooks/retraits/useRetraits";
@@ -22,20 +22,38 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
   const { wallet, getWallet } = useWallet();
   const [loading, setLoading] = useState(false);
   const [checkingWallet, setCheckingWallet] = useState(true);
+  const location = useLocation()
+  const userData = location.state
+
+  const currencies: ("CDF" | "USD")[] = ["CDF", "USD"];
+
+  const providersRDC = [
+    { name: "Airtel Money", value: "AIRTEL_COD" },
+    { name: "M-Pesa (Vodacom)", value: "VODACOM_MPESA_COD" },
+    { name: "Orange Money", value: "ORANGE_COD" },
+  ];
+
   const [formData, setFormData] = useState({
     amount: "",
+    currency: "CDF" as "CDF" | "USD",
+    correspondent: "",
     methodPayment: {
       type: "Momo" as "Momo" | "Bank",
       number: "",
       intitule: "",
     },
   });
+  const [confirmedNumber, setConfirmedNumber] = useState("");
+
+  const userId = user?.role === "admin" ? userData.userId : (
+    user?.role === "vendeur" ? user.id : null
+  )
 
   useEffect(() => {
-    if (user?.id) {
-      getWallet(user.id);
+    if (userId) {
+      getWallet(userId);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     if (wallet) {
@@ -47,12 +65,15 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
     if (retrait && isEdit) {
       setFormData({
         amount: retrait.amount.toString(),
+        currency: (retrait as any).currency || "CDF",
+        correspondent: (retrait as any).correspondent || "",
         methodPayment: {
           type: retrait.methodPayment.type,
           number: retrait.methodPayment.number,
           intitule: retrait.methodPayment.intitule,
         },
       });
+      setConfirmedNumber(retrait.methodPayment.number);
     }
   }, [retrait, isEdit]);
 
@@ -64,14 +85,23 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
       return;
     }
 
-    // Vérifier que le montant ne dépasse pas le solde disponible
     if (wallet && amount > wallet.totalInDisplay.wallet) {
       alertError(`Solde insuffisant. Disponible: ${wallet.totalInDisplay.wallet} ${wallet.totalInDisplay.currency}`);
       return;
     }
 
+    if (formData.methodPayment.type === "Momo" && !formData.correspondent.trim()) {
+      alertError("Veuillez sélectionner un correspondant");
+      return;
+    }
+
     if (!formData.methodPayment.number.trim()) {
       alertError("Le numéro de paiement est obligatoire");
+      return;
+    }
+
+    if (formData.methodPayment.number.trim() !== confirmedNumber.trim()) {
+      alertError("Les numéros ne correspondent pas. Veuillez vérifier votre saisie.");
       return;
     }
 
@@ -83,21 +113,28 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
     setLoading(true);
     try {
       let response;
+      const payload: any = {
+        amount: amount,
+        currency: formData.currency,
+        methodPayment: formData.methodPayment,
+      };
+
+      if (formData.methodPayment.type === "Momo") {
+        payload.correspondent = formData.correspondent;
+      }
+
       if (isEdit && retrait) {
         response = await retraitsService.update(
           retrait.id || retrait._id || "",
-          {
-            amount: amount,
-            methodPayment: formData.methodPayment,
-          },
+          payload,
           token
         );
       } else {
         response = await retraitsService.create(
           {
-            vendeurId: user?.id!,
-            amount: amount,
-            methodPayment: formData.methodPayment,
+            vendeurId: userId!,
+            ...payload,
+            type: 'vendeur'
           },
           token
         );
@@ -123,6 +160,9 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
     }
   };
 
+  const numbersMatch = formData.methodPayment.number.trim() === confirmedNumber.trim();
+  const showMismatch = confirmedNumber.length > 0 && !numbersMatch;
+
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       {/* Solde disponible */}
@@ -144,21 +184,55 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
         </div>
       </div>
 
+      {/* Avertissement global */}
+      <div className="mb-6 p-4 bg-red-50 border-2 border-red-300 rounded-xl">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-red-700">
+              Vérifiez attentivement votre numéro avant de valider
+            </p>
+            <p className="text-xs text-red-600 mt-1">
+              Une fois le retrait envoyé, il est <strong>impossible de récupérer l'argent</strong> si le numéro est incorrect. Vérifiez chaque chiffre, deux fois.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <form onSubmit={(e) => e.preventDefault()}>
         <div className="space-y-6">
+          {/* Montant + Devise */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Montant à retirer <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              placeholder="Ex: 150000"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50"
-              required
-              disabled={loading}
-            />
+            <div className="flex gap-3">
+              <input
+                type="number"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                placeholder="Ex: 150000"
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50"
+                required
+                disabled={loading}
+              />
+              <select
+                value={formData.currency}
+                onChange={(e) =>
+                  setFormData({ ...formData, currency: e.target.value as "CDF" | "USD" })
+                }
+                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 bg-white"
+                disabled={loading}
+              >
+                {currencies.map((currency) => (
+                  <option key={currency} value={currency}>
+                    {currency}
+                  </option>
+                ))}
+              </select>
+            </div>
             {wallet && (
               <p className="text-xs text-gray-500 mt-1">
                 Solde disponible: {wallet.totalInDisplay.wallet.toLocaleString()} {wallet.totalInDisplay.currency}
@@ -179,11 +253,10 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
                     methodPayment: { ...formData.methodPayment, type: "Momo" },
                   })
                 }
-                className={`px-4 py-2.5 rounded-lg border-2 transition ${
-                  formData.methodPayment.type === "Momo"
+                className={`px-4 py-2.5 rounded-lg border-2 transition ${formData.methodPayment.type === "Momo"
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-gray-300 hover:border-gray-400"
-                }`}
+                  }`}
                 disabled={loading || isEdit}
               >
                 Mobile Money
@@ -194,19 +267,43 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
                   setFormData({
                     ...formData,
                     methodPayment: { ...formData.methodPayment, type: "Bank" },
+                    correspondent: "",
                   })
                 }
-                className={`px-4 py-2.5 rounded-lg border-2 transition ${
-                  formData.methodPayment.type === "Bank"
+                className={`px-4 py-2.5 rounded-lg border-2 transition ${formData.methodPayment.type === "Bank"
                     ? "border-primary bg-primary/5 text-primary"
                     : "border-gray-300 hover:border-gray-400"
-                }`}
+                  }`}
                 disabled={loading || isEdit}
               >
                 Banque
               </button>
             </div>
           </div>
+
+          {formData.methodPayment.type === "Momo" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Correspondant <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.correspondent}
+                onChange={(e) =>
+                  setFormData({ ...formData, correspondent: e.target.value })
+                }
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 bg-white"
+                required
+                disabled={loading}
+              >
+                <option value="">-- Sélectionner un correspondant --</option>
+                {providersRDC.map((provider) => (
+                  <option key={provider.value} value={provider.value}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -231,6 +328,50 @@ export default function RetraitForm({ retrait, isEdit = false, onSuccess }: Retr
               required
               disabled={loading}
             />
+          </div>
+
+          {/* Champ de confirmation avec avertissement renforcé */}
+          <div>
+            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-xs font-bold text-red-700 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                ATTENTION : Vérifiez vraiment vraiment ce numéro. L'argent sera envoyé à ce numéro et ne pourra plus être récupéré.
+              </p>
+            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirmez le {formData.methodPayment.type === "Momo" ? "numéro de téléphone" : "numéro de compte"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={confirmedNumber}
+              onChange={(e) => setConfirmedNumber(e.target.value)}
+              placeholder={
+                formData.methodPayment.type === "Momo"
+                  ? "Retapez le numéro de téléphone"
+                  : "Retapez le numéro de compte"
+              }
+              className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-primary/50 ${
+                showMismatch
+                  ? "border-red-500 bg-red-50"
+                  : confirmedNumber && numbersMatch
+                  ? "border-green-500 bg-green-50"
+                  : "border-gray-300"
+              }`}
+              required
+              disabled={loading}
+            />
+            {showMismatch && (
+              <p className="text-xs text-red-600 font-bold mt-1 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                Les numéros ne correspondent pas. Vérifiez votre saisie.
+              </p>
+            )}
+            {confirmedNumber && numbersMatch && (
+              <p className="text-xs text-green-600 font-medium mt-1">
+                ✓ Les numéros correspondent
+              </p>
+            )}
           </div>
 
           <div>
