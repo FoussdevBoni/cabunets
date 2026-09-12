@@ -1,25 +1,40 @@
 // controllers/retraitController.ts
 import { Request, Response } from 'express';
 import { retraitService } from '../services/retraitService';
+import { cabupayPayoutService } from '../services/cabupayPayoutService';
 
 export const createRetrait = async (req: Request, res: Response): Promise<Response> => {
+
+  const currentUser = req.user
+
   try {
     const {
       vendeurId,
       amount,
-      netAmount,
       methodPayment,
+      correspondent
     } = req.body;
+
+    if (!currentUser) {
+      return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
+
+    }
+    if (currentUser.role !== "vendeur" && currentUser.role !== "admin") {
+      return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
+
+    }
+
 
     if (!vendeurId) {
       return res.status(400).json({ error: 'Le vendeurId est obligatoire' });
     }
 
+    if (currentUser.role === "vendeur" && currentUser.userId !== vendeurId) {
+      return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
+    }
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Le montant est obligatoire et doit être supérieur à 0' });
     }
-
-   
 
     if (!methodPayment || !methodPayment.type || !methodPayment.number || !methodPayment.intitule) {
       return res.status(400).json({ error: 'Les informations de paiement sont obligatoires' });
@@ -27,11 +42,13 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
 
     const retrait = await retraitService.createRetrait({
       vendeurId,
-      vendeur: vendeurId ,
+      vendeur: vendeurId,
       amount,
       methodPayment,
       status: 'PENDING',
+      correspondent
     });
+
 
     return res.status(201).json({
       success: true,
@@ -42,7 +59,7 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
   } catch (err: any) {
     console.error('❌ Erreur createRetrait:', err.message || err);
     return res.status(500).json({
-      error: err.message ||  'Erreur lors de la création de la demande de retrait',
+      error: err.message || 'Erreur lors de la création de la demande de retrait',
     });
   }
 };
@@ -111,9 +128,9 @@ export const getRetraitById = async (req: Request, res: Response): Promise<Respo
 
 export const updateRetrait = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const retrait = await retraitService.updateRetrait(req.params.id,  {
-        ...req.body,
-        vendeur: req.body.vendeurId
+    const retrait = await retraitService.updateRetrait(req.params.id, {
+      ...req.body,
+      vendeur: req.body.vendeurId
     });
     if (!retrait) {
       return res.status(404).json({ error: 'Retrait non trouvé' });
@@ -212,5 +229,201 @@ export const getRetraitsStats = async (req: Request, res: Response): Promise<Res
   } catch (err: any) {
     console.error('❌ Erreur getRetraitsStats:', err.message || err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des statistiques' });
+  }
+};
+
+
+export const createRetraitCabunet = async (req: Request, res: Response): Promise<Response> => {
+
+  const currentUser = req.user
+
+  try {
+    const {
+      amount,
+      methodPayment,
+      correspondent
+    } = req.body;
+
+    if (!currentUser) {
+      return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
+
+    }
+    if ( currentUser.role !== "admin") {
+      return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
+
+    }
+
+
+
+ 
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Le montant est obligatoire et doit être supérieur à 0' });
+    }
+
+    if (!methodPayment || !methodPayment.type || !methodPayment.number || !methodPayment.intitule) {
+      return res.status(400).json({ error: 'Les informations de paiement sont obligatoires' });
+    }
+
+    const retrait = await retraitService.createRetraitCabunet({
+      type: 'cabunet',
+      amount,
+      methodPayment,
+      status: 'PENDING',
+      correspondent
+    });
+
+
+    return res.status(201).json({
+      success: true,
+      message: 'Demande de retrait créée avec succès',
+      retrait,
+    });
+
+  } catch (err: any) {
+    console.error('❌ Erreur createRetrait:', err.message || err);
+    return res.status(500).json({
+      error: err.message || 'Erreur lors de la création de la demande de retrait',
+    });
+  }
+};
+
+
+
+export const getPayoutDirect = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { payoutId } = req.params;
+
+    if (!payoutId) {
+      return res.status(400).json({ success: false, error: 'Le paramètre payoutId est requis' });
+    }
+
+    const result = await cabupayPayoutService.getPayoutDirect(payoutId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('[Get Payout Direct Error]:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
+/**
+ * 4. Récupérer un retrait
+ */
+export const getPayout = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { referenceOrId } = req.params;
+
+    if (!referenceOrId) {
+      return res.status(400).json({ success: false, error: 'Le paramètre referenceOrId est requis' });
+    }
+
+    const result = await cabupayPayoutService.getPayout(referenceOrId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('[Get Payout Error]:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
+
+/**
+ * 3. Webhook pour les retraits
+ */
+export const handlePayoutWebhook = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const signatureHeader = req.headers['x-gateway-signature'] as string;
+
+    const payload = cabupayPayoutService.handleWebhookNotification(req.body, signatureHeader);
+    const { payoutId, status, failureReason, providerTransactionId, clientReference } = payload;
+
+    // Chercher le retrait par clientReference ou payoutId
+    let retrait = null;
+
+    if (clientReference) {
+      retrait = await retraitService.getRetraitById(clientReference);
+    }
+
+    if (!retrait && payoutId) {
+      // Si pas trouvé par clientReference, chercher par payoutId dans un champ dédié
+      retrait = await retraitService.getByPayoutId(payoutId);
+    }
+
+    if (!retrait) {
+      console.error(`[Payout Webhook] Retrait introuvable: ${payoutId || clientReference}`);
+      res.status(200).json({ success: false, message: 'Retrait introuvable' });
+      return;
+    }
+
+    // Idempotence
+    const FINAL_STATUSES = ['COMPLETED', 'REJECTED'];
+    if (FINAL_STATUSES.includes(retrait.status)) {
+      console.log(`[Payout Webhook] Retrait ${retrait._id} déjà en statut final (${retrait.status}). Ignoré.`);
+      res.status(200).json({ success: true, message: 'Notification déjà traitée' });
+      return;
+    }
+
+    // Mapping des statuts PawaPay vers vos statuts
+    if (status === 'COMPLETED') {
+      retrait.status = 'COMPLETED';
+      if (providerTransactionId) {
+        (retrait as any).providerTransactionId = providerTransactionId;
+      }
+      if (payoutId) {
+        (retrait as any).payoutId = payoutId;
+      }
+      console.log(`[Payout Webhook] Retrait ${retrait._id} complété`);
+
+    } else if (status === 'FAILED') {
+      retrait.status = 'REJECTED';
+      if (failureReason) {
+        if (typeof failureReason === 'object' && failureReason !== null && 'failureMessage' in failureReason) {
+          const code = (failureReason as any).failureCode || 'FAILED';
+          const msg = (failureReason as any).failureMessage;
+          retrait.rejectReason = `${code}: ${msg}`;
+        } else {
+          retrait.rejectReason = typeof failureReason === 'string'
+            ? failureReason
+            : JSON.stringify(failureReason);
+        }
+      } else {
+        retrait.rejectReason = 'Retrait échoué';
+      }
+      console.warn(`[Payout Webhook] Retrait ${retrait._id} rejeté:`, retrait.rejectReason);
+    }
+
+    await retrait.save();
+    res.status(200).json({ success: true, message: 'Webhook traité' });
+
+  } catch (error: any) {
+    console.error('[Payout Webhook Error]:', error.message || error);
+    res.status(400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
+  }
+};
+
+/**
+ * POST /retraits/resend-callback
+ * Demander à PawaPay de renvoyer le callback d'un retrait
+ */
+export const resendPayoutCallback = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { payoutId } = req.body;
+
+    if (!payoutId) {
+      return res.status(400).json({ error: 'payoutId est obligatoire' });
+    }
+
+    const data = await cabupayPayoutService.resendPayoutCallback(payoutId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Callback renvoyé avec succès',
+      data,
+    });
+  } catch (err: any) {
+    console.error('❌ Erreur resendPayoutCallback:', err.message || err);
+    return res.status(500).json({
+      error: err.message || 'Erreur lors du renvoi du callback',
+    });
   }
 };

@@ -1,5 +1,6 @@
 // services/retraitService.ts
 import Retrait, { IRetrait } from "../models/Retrait";
+import { cabupayPayoutService } from "./cabupayPayoutService";
 import { WalletService } from "./walletService";
 
 const walletService = new WalletService();
@@ -16,8 +17,19 @@ export const retraitService = {
   async getRetraitById(id: string): Promise<IRetrait | null> {
     return await Retrait.findById(id).populate('vendeur');
   },
+   async getByPayoutId(payoutId: string): Promise<IRetrait | null> {
+    return await Retrait.findOne({payoutId}).populate('vendeur');
+  },
 
-  async createRetrait(data: Partial<IRetrait>): Promise<IRetrait> {
+
+  async createRetrait(data: Partial<IRetrait>): Promise<{
+    success: boolean;
+    data: {
+      retrait: IRetrait;
+      status: string;
+      pawapayData: any;
+    };
+  }> {
     if (!data.vendeurId) {
       throw new Error("L'identifiant du vendeur est requis");
     }
@@ -27,8 +39,7 @@ export const retraitService = {
     }
 
     const walletInfo = await walletService.getWalletDisponible(data.vendeurId.toString());
-    
-    // ✅ Correction : utiliser totalInDisplay.wallet
+
     if (walletInfo.totalInDisplay.wallet < data.amount) {
       throw new Error(
         `Solde insuffisant. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${data.amount}`
@@ -36,12 +47,53 @@ export const retraitService = {
     }
 
     const retrait = new Retrait(data);
-    return await retrait.save();
+    await retrait.save();
+
+    const { amount, methodPayment, correspondent, currency } = data;
+    const payoutResult = await cabupayPayoutService.initiatePayout({
+      amount: amount!.toString(),
+      currency: currency || "CDF",
+      phone: methodPayment?.number || "",
+      correspondent: correspondent || "",
+      clientReference: retrait._id.toString(),
+    });
+
+    // Statuts possibles lors de l'initialisation d'un payout : ACCEPTED | REJECTED | DUPLICATE_IGNORED
+    const status = payoutResult.data.pawaResponse?.status || payoutResult.data.status;
+
+    if (payoutResult.data.payoutId) {
+      retrait.payoutId = payoutResult.data.payoutId;
+    }
+
+    if (status === "REJECTED") {
+      retrait.status = "REJECTED";
+      retrait.rejectReason =
+        payoutResult.data.pawaResponse?.failureReason?.failureMessage ||
+        "Retrait rejeté";
+    } else if (status === "DUPLICATE_IGNORED") {
+      // Doublon ignoré, on garde PENDING (déjà en cours de traitement)
+      retrait.status = "PENDING";
+      retrait.rejectReason = "Doublon ignoré";
+    } else if (status === "ACCEPTED") {
+      // Accepté pour traitement, en attente du callback final
+      retrait.status = "PENDING";
+    }
+
+    await retrait.save();
+
+    return {
+      success: status === "ACCEPTED",
+      data: {
+        retrait,
+        status,
+        pawapayData: payoutResult.data.pawaResponse,
+      },
+    };
   },
 
   async updateRetrait(id: string, data: Partial<IRetrait>): Promise<IRetrait | null> {
     const existingRetrait = await Retrait.findById(id);
-    
+
     if (!existingRetrait) {
       throw new Error("Retrait non trouvé");
     }
@@ -51,15 +103,16 @@ export const retraitService = {
         throw new Error("Le montant doit être supérieur à 0");
       }
 
-      const walletInfo = await walletService.getWalletDisponible(
-        existingRetrait.vendeurId.toString()
-      );
-
-      // ✅ Correction : utiliser totalInDisplay.wallet
-      if (walletInfo.totalInDisplay.wallet < data.amount) {
-        throw new Error(
-          `Solde insuffisant. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Nouveau montant: ${data.amount}`
+      if (existingRetrait.vendeurId) {
+        const walletInfo = await walletService.getWalletDisponible(
+          existingRetrait.vendeurId.toString()
         );
+
+        if (walletInfo.totalInDisplay.wallet < data.amount) {
+          throw new Error(
+            `Solde insuffisant. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Nouveau montant: ${data.amount}`
+          );
+        }
       }
     }
 
@@ -68,16 +121,17 @@ export const retraitService = {
         throw new Error(`Le retrait est déjà ${existingRetrait.status}`);
       }
 
-      const montantAVerifier = data.amount || existingRetrait.amount;
-      const walletInfo = await walletService.getWalletDisponible(
-        existingRetrait.vendeurId.toString()
-      );
-
-      // ✅ Correction : utiliser totalInDisplay.wallet
-      if (walletInfo.totalInDisplay.wallet < montantAVerifier) {
-        throw new Error(
-          `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${montantAVerifier}`
+      if (existingRetrait.vendeurId) {
+        const montantAVerifier = data.amount || existingRetrait.amount;
+        const walletInfo = await walletService.getWalletDisponible(
+          existingRetrait.vendeurId.toString()
         );
+
+        if (walletInfo.totalInDisplay.wallet < montantAVerifier) {
+          throw new Error(
+            `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${montantAVerifier}`
+          );
+        }
       }
     }
 
@@ -163,7 +217,7 @@ export const retraitService = {
 
   async validateRetrait(id: string): Promise<IRetrait | null> {
     const retrait = await Retrait.findById(id);
-    
+
     if (!retrait) {
       throw new Error("Retrait non trouvé");
     }
@@ -172,15 +226,16 @@ export const retraitService = {
       throw new Error(`Le retrait est déjà ${retrait.status}`);
     }
 
-    const walletInfo = await walletService.getWalletDisponible(
-      retrait.vendeurId.toString()
-    );
-
-    // ✅ Correction : utiliser totalInDisplay.wallet
-    if (walletInfo.totalInDisplay.wallet < retrait.amount) {
-      throw new Error(
-        `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${retrait.amount}`
+    if (retrait.vendeurId) {
+      const walletInfo = await walletService.getWalletDisponible(
+        retrait.vendeurId.toString()
       );
+
+      if (walletInfo.totalInDisplay.wallet < retrait.amount) {
+        throw new Error(
+          `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${retrait.amount}`
+        );
+      }
     }
 
     return await Retrait.findByIdAndUpdate(
@@ -196,5 +251,82 @@ export const retraitService = {
       { status: "REJECTED", rejectReason: reason, updatedAt: new Date() },
       { new: true }
     ).populate('vendeur');
+  },
+
+  async createRetraitCabunet(data: Partial<IRetrait>): Promise<{
+    success: boolean;
+    data: {
+      retrait: IRetrait;
+      status: string;
+      pawapayData: any;
+    };
+  }> {
+    if (!data.amount || data.amount <= 0) {
+      throw new Error("Le montant doit être supérieur à 0");
+    }
+
+    const solde = await walletService.getCabunetWallet();
+
+    if (solde.disponible < data.amount) {
+      throw new Error(
+        `Solde commission insuffisant. Disponible: ${solde.disponible} ${solde.currency}, Demandé: ${data.amount}`
+      );
+    }
+
+    const retrait = new Retrait({
+      ...data,
+      type: "cabunet",
+    });
+    await retrait.save();
+
+    const { amount, methodPayment, correspondent, currency } = data;
+    const payoutResult = await cabupayPayoutService.initiatePayout({
+      amount: amount!.toString(),
+      currency: currency || "CDF",
+      phone: methodPayment?.number || "",
+      correspondent: correspondent || "",
+      clientReference: retrait._id.toString()
+    });
+
+    const status = payoutResult.data.pawaResponse?.status || payoutResult.data.status;
+
+    if (payoutResult.data.payoutId) {
+      retrait.payoutId = payoutResult.data.payoutId;
+    }
+
+    if (status === "REJECTED") {
+      retrait.status = "REJECTED";
+      retrait.rejectReason =
+        payoutResult.data.pawaResponse?.failureReason?.failureMessage ||
+        "Retrait rejeté";
+    } else if (status === "DUPLICATE_IGNORED") {
+      retrait.status = "PENDING";
+      retrait.rejectReason = "Doublon ignoré";
+    } else if (status === "ACCEPTED") {
+      retrait.status = "PENDING";
+    }
+
+    await retrait.save();
+
+    return {
+      success: status === "ACCEPTED",
+      data: {
+        retrait,
+        status,
+        pawapayData: payoutResult.data.pawaResponse,
+      },
+    };
+  },
+
+  async getRetraitsCabunet(): Promise<IRetrait[]> {
+    return await Retrait.find({ type: "cabunet" }).sort({ createdAt: -1 });
+  },
+
+  async getTotalRetraitsCabunet(): Promise<number> {
+    const result = await Retrait.aggregate([
+      { $match: { type: "cabunet", status: "COMPLETED" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+    return result[0]?.total || 0;
   },
 };

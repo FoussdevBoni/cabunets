@@ -141,7 +141,8 @@ export class WalletService {
       {
         $match: {
           vendeurId: new mongoose.Types.ObjectId(vendeurId),
-          status: "COMPLETED"
+          status: "COMPLETED",
+
         }
       },
       {
@@ -337,7 +338,7 @@ export class WalletService {
 
   async getAllWallets(): Promise<IWalletInfo[]> {
     // Récupérer TOUS les vendeurs de la collection Vendeur
-  const allVendeurs = await User.find({ role: "vendeur" }).select("_id").lean();
+    const allVendeurs = await User.find({ role: "vendeur" }).select("_id").lean();
 
     const wallets: IWalletInfo[] = [];
 
@@ -350,10 +351,58 @@ export class WalletService {
     return wallets;
   }
 
+
+    /**
+   * Récupère le wallet Cabunet (commission plateforme)
+   */
+  
+  async getCabunetWallet(): Promise<{
+    generee: number;
+    retiree: number;
+    disponible: number;
+    currency: string;
+  }> {
+    const wallets = await this.getAllWallets();
+    const setting = await this.getSetting();
+
+    // Commission générée = somme des commissions calculées par vendeur
+    const generee = wallets.reduce(
+      (sum, w) => sum + w.totalInDisplay.commission,
+      0
+    );
+
+    // Retraits cabunet déjà effectués
+    const retraitsResult = await Retrait.aggregate([
+      {
+        $match: {
+          type: "cabunet",
+          status: "COMPLETED",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const retiree = retraitsResult[0]?.total || 0;
+    const disponible = Math.max(generee - retiree, 0);
+
+    return {
+      generee,
+      retiree,
+      disponible,
+      currency: setting.defaultDisplayCurrency || "CDF",
+    };
+  }
   /**
    * Vide le cache
    */
   invalidateCache(): void {
     this.currencyService.invalidateCache();
   }
+
+
 }

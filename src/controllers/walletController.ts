@@ -186,3 +186,25 @@ export const getAllWallets = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+/**
+ * GET /api/wallet/commission-solde
+ * Récupère le solde commission de la plateforme
+ */
+export const getCabunetWallet = async (req: Request, res: Response) => {
+
+  try {
+    const solde = await walletService.getCabunetWallet();
+
+    return res.status(200).json({
+      success: true,
+      data: solde
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
