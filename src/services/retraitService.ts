@@ -17,8 +17,8 @@ export const retraitService = {
   async getRetraitById(id: string): Promise<IRetrait | null> {
     return await Retrait.findById(id).populate('vendeur');
   },
-   async getByPayoutId(payoutId: string): Promise<IRetrait | null> {
-    return await Retrait.findOne({payoutId}).populate('vendeur');
+  async getByPayoutId(payoutId: string): Promise<IRetrait | null> {
+    return await Retrait.findOne({ payoutId }).populate('vendeur');
   },
 
 
@@ -226,6 +226,29 @@ export const retraitService = {
       throw new Error(`Le retrait est déjà ${retrait.status}`);
     }
 
+    if (!retrait.payoutId) {
+      throw new Error("Le retrait est invalide : aucun payoutId associé");
+    }
+
+    // Vérifier le statut réel chez PawaPay
+    const directPayout = await cabupayPayoutService.getPayoutDirect(retrait.payoutId);
+
+    // Vérifier d'abord si le payout existe chez PawaPay
+
+    if (!directPayout.success) {
+      throw new Error("Impossible de valider : ce retrait n'existe pas chez PawaPay");
+    }
+
+    // Ensuite vérifier le vrai statut de la transaction
+    const pawaStatus = directPayout.data?.status?.toUpperCase();
+
+    if (pawaStatus !== "COMPLETED") {
+      throw new Error(
+        `Impossible de valider : le retrait est en statut "${pawaStatus}" chez PawaPay (attendu: COMPLETED)`
+      );
+    }
+
+    // Vérification du solde
     if (retrait.vendeurId) {
       const walletInfo = await walletService.getWalletDisponible(
         retrait.vendeurId.toString()
@@ -244,6 +267,8 @@ export const retraitService = {
       { new: true }
     ).populate('vendeur');
   },
+
+
 
   async rejectRetrait(id: string, reason: string): Promise<IRetrait | null> {
     return await Retrait.findByIdAndUpdate(

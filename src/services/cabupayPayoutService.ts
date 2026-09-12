@@ -33,6 +33,26 @@ export interface PayoutWebhookPayload {
   correspondent?: string;
 }
 
+export interface PayoutRecipient {
+  type: string;
+  accountDetails: {
+    phoneNumber: string;
+    provider: string;
+  };
+}
+
+
+export interface DirectPayout {
+  payoutId: string;
+  status: string;
+  amount: string;
+  currency: string;
+  country: string;
+  recipient: PayoutRecipient;
+  customerMessage: string;
+  created: string;
+  providerTransactionId: string;
+};
 export class CabupayPayoutService {
   private baseUrl = process.env.CABUPAY_URL || 'https://cabupay-production.up.railway.app/v1';
   private payoutsUrl = `${this.baseUrl}/payouts`;
@@ -98,15 +118,21 @@ export class CabupayPayoutService {
   /**
    * 4. Récupérer un retrait directement depuis PawaPay (sans BDD)
    */
-  public async getPayoutDirect(payoutId: string): Promise<any> {
+  public async getPayoutDirect(payoutId: string): Promise<{
+    success: boolean;
+    data: DirectPayout
+  }> {
     try {
       console.log(`[CabupayPayoutService] Récupération directe depuis PawaPay: ${payoutId}`);
 
-      const response = await axios.get(`${this.payoutsUrl}/direct/${payoutId}`, {
+      const response = await axios.get(`${this.payoutsUrl}/deposite/${payoutId}`, {
         timeout: 5000,
       });
 
-      return response.data;
+      return {
+        success: response.data.success,
+        data: response?.data?.data?.data
+      };
     } catch (error: any) {
       if (error.response) {
         console.error('[CabupayPayoutService] Erreur lors de la récupération directe:', error.response.data);
