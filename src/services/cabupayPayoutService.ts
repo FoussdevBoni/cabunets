@@ -37,7 +37,7 @@ export class CabupayPayoutService {
   private baseUrl = process.env.CABUPAY_URL || 'https://cabupay-production.up.railway.app/v1';
   private payoutsUrl = `${this.baseUrl}/payouts`;
   private sharedSecret = process.env.INTERNAL_SHARED_SECRET || 'fallback_secret';
-  private callbackUrl = process.env.CABUPAY_URL || 'https://cabunets-production.up.railway.app';
+  private callbackUrl = process.env.BASE_URL || 'https://cabunets-production.up.railway.app';
 
   /**
    * 2. Initier un retrait

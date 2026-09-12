@@ -264,7 +264,7 @@ export const createRetraitCabunet = async (req: Request, res: Response): Promise
       return res.status(400).json({ error: 'Les informations de paiement sont obligatoires' });
     }
 
-    const retrait = await retraitService.createRetraitCabunet({
+    const retraitProcessData = await retraitService.createRetraitCabunet({
       type: 'cabunet',
       amount,
       methodPayment,
@@ -274,9 +274,9 @@ export const createRetraitCabunet = async (req: Request, res: Response): Promise
 
 
     return res.status(201).json({
-      success: true,
-      message: 'Demande de retrait créée avec succès',
-      retrait,
+      success: retraitProcessData.success,
+      message: retraitProcessData.success ? "Retrait initié avec succès" : "L'initiation de retrait échouée",
+      data: retraitProcessData.data,
     });
 
   } catch (err: any) {
