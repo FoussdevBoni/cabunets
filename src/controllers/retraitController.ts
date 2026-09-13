@@ -12,7 +12,8 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
       vendeurId,
       amount,
       methodPayment,
-      correspondent
+      correspondent,
+      currency
     } = req.body;
 
     if (!currentUser) {
@@ -46,7 +47,8 @@ export const createRetrait = async (req: Request, res: Response): Promise<Respon
       amount,
       methodPayment,
       status: 'PENDING',
-      correspondent
+      correspondent,
+      currency
     });
 
 
@@ -241,7 +243,8 @@ export const createRetraitCabunet = async (req: Request, res: Response): Promise
     const {
       amount,
       methodPayment,
-      correspondent
+      correspondent,
+      currency
     } = req.body;
 
     if (!currentUser) {
@@ -269,7 +272,8 @@ export const createRetraitCabunet = async (req: Request, res: Response): Promise
       amount,
       methodPayment,
       status: 'PENDING',
-      correspondent
+      correspondent,
+      currency
     });
 
 
