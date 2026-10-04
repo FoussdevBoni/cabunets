@@ -20,7 +20,7 @@ export class OrderNotificationService {
    * @param order - L'ordre Mongoose
    * @returns boolean - True si le message a été envoyé, false sinon
    */
-  static async sendWhatsAppNotification(order: any): Promise<boolean> {
+  static async sendWhatsAppNotification(order: any, whatsappSentMode: "auto" | "manuel"): Promise<boolean> {
     try {
       // Vérifier si le message doit être envoyé
       if (order.whatsappSent) {
@@ -55,9 +55,11 @@ export class OrderNotificationService {
       // Marquer comme envoyé dans la base de données
       order.whatsappSent = true;
       order.whatsappSentAt = new Date();
+      order.whatsappSentMode = whatsappSentMode; // ⬅️ AJOUT
       await order.save();
 
-      console.log(`✅ WhatsApp envoyé pour la commande #${order._id}`);
+      console.log(`✅ WhatsApp envoyé pour la commande #${order._id} (mode: ${whatsappSentMode})`);
+      return true;
       return true;
 
     } catch (error: any) {
@@ -90,8 +92,9 @@ export class OrderNotificationService {
 
       // Parcourir et envoyer chaque message
       for (const order of pendingOrders) {
-        const success = await this.sendWhatsAppNotification(order);
+        const success = await this.sendWhatsAppNotification(order , "manuel");
         if (success) {
+
           sentCount++;
         } else {
           failedCount++;

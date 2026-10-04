@@ -369,7 +369,7 @@ export const traitOrder = async (req: Request, res: Response): Promise<Response>
 
     // 🔥 Utilisation du service de notification
     if (OrderNotificationService.shouldSendNotification(order, paymentStatus)) {
-      await OrderNotificationService.sendWhatsAppNotification(order);
+      await OrderNotificationService.sendWhatsAppNotification(order , "manuel");
     }
 
     await order.save();

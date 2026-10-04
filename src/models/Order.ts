@@ -25,6 +25,7 @@ export interface IOrder extends Document {
   
   whatsappSent?: boolean;
   whatsappSentAt?: Date;
+  whatsappSentMode: "auto" | "manuel"
   whatsappProcessing?: boolean;
   whatsappProcessingAt?: Date;
   whatsappProcessingStuckAt?: Date;
@@ -73,6 +74,12 @@ const OrderSchema = new Schema<IOrder>(
     whatsappSent: { 
       type: Boolean, 
       default: false 
+    },
+     whatsappSentMode: {
+      type: String,
+      required: false,
+      default: "auto",
+      enum: ["manuel", "auto"]
     },
     whatsappSentAt: { 
       type: Date 

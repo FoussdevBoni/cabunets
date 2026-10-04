@@ -1,5 +1,6 @@
 // services/retraitService.ts
 import Retrait, { IRetrait } from "../models/Retrait";
+import { formatPhone } from "../utils/formatPhone";
 import { cabupayPayoutService } from "./cabupayPayoutService";
 import { WalletService } from "./walletService";
 
@@ -17,18 +18,18 @@ export const retraitService = {
   async getRetraitById(id: string): Promise<IRetrait | null> {
     return await Retrait.findById(id).populate('vendeur');
   },
+
   async getByPayoutId(payoutId: string): Promise<IRetrait | null> {
     return await Retrait.findOne({ payoutId }).populate('vendeur');
   },
 
-
+  /**
+   * Crée une simple DEMANDE de retrait.
+   * Aucun payout n'est initié ici : c'est l'admin qui déclenche via validateRetrait.
+   */
   async createRetrait(data: Partial<IRetrait>): Promise<{
     success: boolean;
-    data: {
-      retrait: IRetrait;
-      status: string;
-      pawapayData: any;
-    };
+    data: { retrait: IRetrait };
   }> {
     if (!data.vendeurId) {
       throw new Error("L'identifiant du vendeur est requis");
@@ -46,19 +47,66 @@ export const retraitService = {
       );
     }
 
-    const retrait = new Retrait(data);
+    const retrait = new Retrait({
+      ...data,
+      status: "PENDING", // en attente de validation admin
+    });
     await retrait.save();
 
-    const { amount, methodPayment, correspondent, currency } = data;
+    return {
+      success: true,
+      data: { retrait },
+    };
+  },
+
+  /**
+   * Validation admin : déclenche RÉELLEMENT le payout PawaPay.
+   * Reprend la logique qui était dans validateRetraitByAdmin.
+   */
+  async validateRetrait(id: string): Promise<{
+    success: boolean;
+    data: {
+      retrait: IRetrait;
+      status: string;
+      pawapayData: any;
+    };
+  }> {
+    const retrait = await Retrait.findById(id);
+
+    if (!retrait) {
+      throw new Error("Retrait non trouvé");
+    }
+
+    if (retrait.status !== "PENDING") {
+      throw new Error(`Le retrait est déjà ${retrait.status}`);
+    }
+
+    if (!retrait.vendeurId) {
+      throw new Error("L'identifiant du vendeur est requis");
+    }
+
+    if (!retrait.amount || retrait.amount <= 0) {
+      throw new Error("Le montant doit être supérieur à 0");
+    }
+
+    // Vérification du solde au moment de la validation
+    const walletInfo = await walletService.getWalletDisponible(retrait.vendeurId.toString());
+    if (walletInfo.totalInDisplay.wallet < retrait.amount) {
+      throw new Error(
+        `Solde insuffisant. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${retrait.amount}`
+      );
+    }
+
+    // Initiation du payout PawaPay
     const payoutResult = await cabupayPayoutService.initiatePayout({
-      amount: amount!.toString(),
-      currency: currency || "CDF",
-      phone: methodPayment?.number || "",
-      correspondent: correspondent || "",
+      amount: retrait.amount.toString(),
+      currency: retrait.currency || "CDF",
+      phone:  formatPhone(retrait.methodPayment?.number) || "",
+      correspondent: retrait.correspondent || "",
       clientReference: retrait._id.toString(),
     });
 
-    // Statuts possibles lors de l'initialisation d'un payout : ACCEPTED | REJECTED | DUPLICATE_IGNORED
+    // Statuts possibles : ACCEPTED | REJECTED | DUPLICATE_IGNORED
     const status = payoutResult.data.pawaResponse?.status || payoutResult.data.status;
 
     if (payoutResult.data.payoutId) {
@@ -71,14 +119,14 @@ export const retraitService = {
         payoutResult.data.pawaResponse?.failureReason?.failureMessage ||
         "Retrait rejeté";
     } else if (status === "DUPLICATE_IGNORED") {
-      // Doublon ignoré, on garde PENDING (déjà en cours de traitement)
       retrait.status = "PENDING";
       retrait.rejectReason = "Doublon ignoré";
     } else if (status === "ACCEPTED") {
-      // Accepté pour traitement, en attente du callback final
+      // En attente du callback final PawaPay
       retrait.status = "PENDING";
     }
 
+    retrait.updatedAt = new Date();
     await retrait.save();
 
     return {
@@ -160,10 +208,7 @@ export const retraitService = {
 
   async getRetraitsByDateRange(startDate: Date, endDate: Date): Promise<IRetrait[]> {
     return await Retrait.find({
-      createdAt: {
-        $gte: startDate,
-        $lte: endDate,
-      },
+      createdAt: { $gte: startDate, $lte: endDate },
     }).populate('vendeur').sort({ createdAt: -1 });
   },
 
@@ -174,10 +219,7 @@ export const retraitService = {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     return await Retrait.find({
-      createdAt: {
-        $gte: today,
-        $lt: tomorrow,
-      },
+      createdAt: { $gte: today, $lt: tomorrow },
     }).populate('vendeur').sort({ createdAt: -1 });
   },
 
@@ -198,10 +240,7 @@ export const retraitService = {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const todayRetraits = await Retrait.find({
-      createdAt: {
-        $gte: today,
-        $lt: tomorrow,
-      },
+      createdAt: { $gte: today, $lt: tomorrow },
     }).populate('vendeur');
 
     const todayTotal = todayRetraits
@@ -214,61 +253,6 @@ export const retraitService = {
       todayTotal,
     };
   },
-
-  async validateRetrait(id: string): Promise<IRetrait | null> {
-    const retrait = await Retrait.findById(id);
-
-    if (!retrait) {
-      throw new Error("Retrait non trouvé");
-    }
-
-    if (retrait.status !== "PENDING") {
-      throw new Error(`Le retrait est déjà ${retrait.status}`);
-    }
-
-    if (!retrait.payoutId) {
-      throw new Error("Le retrait est invalide : aucun payoutId associé");
-    }
-
-    // Vérifier le statut réel chez PawaPay
-    const directPayout = await cabupayPayoutService.getPayoutDirect(retrait.payoutId);
-
-    // Vérifier d'abord si le payout existe chez PawaPay
-
-    if (!directPayout.success) {
-      throw new Error("Impossible de valider : ce retrait n'existe pas chez PawaPay");
-    }
-
-    // Ensuite vérifier le vrai statut de la transaction
-    const pawaStatus = directPayout.data?.status?.toUpperCase();
-
-    if (pawaStatus !== "COMPLETED") {
-      throw new Error(
-        `Impossible de valider : le retrait est en statut "${pawaStatus}" chez PawaPay (attendu: COMPLETED)`
-      );
-    }
-
-    // Vérification du solde
-    if (retrait.vendeurId) {
-      const walletInfo = await walletService.getWalletDisponible(
-        retrait.vendeurId.toString()
-      );
-
-      if (walletInfo.totalInDisplay.wallet < retrait.amount) {
-        throw new Error(
-          `Solde insuffisant pour valider ce retrait. Disponible: ${walletInfo.totalInDisplay.wallet} ${walletInfo.totalInDisplay.currency}, Demandé: ${retrait.amount}`
-        );
-      }
-    } 
-
-    return await Retrait.findByIdAndUpdate(
-      id,
-      { status: "COMPLETED", updatedAt: new Date() },
-      { new: true }
-    ).populate('vendeur');
-  },
-
-
 
   async rejectRetrait(id: string, reason: string): Promise<IRetrait | null> {
     return await Retrait.findByIdAndUpdate(
@@ -308,9 +292,9 @@ export const retraitService = {
     const payoutResult = await cabupayPayoutService.initiatePayout({
       amount: amount!.toString(),
       currency: currency || "CDF",
-      phone: methodPayment?.number || "",
+      phone: formatPhone(methodPayment?.number) || "",
       correspondent: correspondent || "",
-      clientReference: retrait._id.toString()
+      clientReference: retrait._id.toString(),
     });
 
     const status = payoutResult.data.pawaResponse?.status || payoutResult.data.status;

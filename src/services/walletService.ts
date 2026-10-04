@@ -28,6 +28,13 @@ export interface IWalletInfo {
     net: number;
   }[];
 
+  // Détail des retraits par devise
+  retraitsDetails: {
+    currency: string;
+    total: number;
+    count: number;
+  }[];
+
   // Résumé en devise de base
   totalInBase: {
     currency: string;
@@ -105,8 +112,19 @@ export class WalletService {
         }
       },
       {
+        $addFields: {
+          currencySafe: {
+            $cond: [
+              { $or: [{ $eq: ["$currency", null] }, { $eq: ["$currency", ""] }] },
+              "CDF",
+              "$currency",
+            ],
+          },
+        },
+      },
+      {
         $group: {
-          _id: "$currency",
+          _id: "$currencySafe",
           total: { $sum: "$price" },
           count: { $sum: 1 }
         }
@@ -126,15 +144,17 @@ export class WalletService {
   }
 
   /**
-   * Calcule le total des retraits
+   * Calcule le total des retraits PAR DEVISE
+   * Fallback CDF si currency absent/vide
    */
   async getTotalRetraits(vendeurId: string): Promise<{
     total: number;
     count: number;
+    details: { currency: string; total: number; count: number }[];
   }> {
     // ✅ Vérifier si l'ID est un ObjectId valide
     if (!mongoose.Types.ObjectId.isValid(vendeurId)) {
-      return { total: 0, count: 0 };
+      return { total: 0, count: 0, details: [] };
     }
 
     const result = await Retrait.aggregate([
@@ -142,21 +162,39 @@ export class WalletService {
         $match: {
           vendeurId: new mongoose.Types.ObjectId(vendeurId),
           status: "COMPLETED",
-
         }
       },
       {
+        // ✅ Fallback CDF si currency absent ou vide
+        $addFields: {
+          currencySafe: {
+            $cond: [
+              { $or: [{ $eq: ["$currency", null] }, { $eq: ["$currency", ""] }] },
+              "CDF",
+              "$currency",
+            ],
+          },
+        },
+      },
+      {
         $group: {
-          _id: null,
-          totalRetraits: { $sum: "$amount" },
+          _id: "$currencySafe",
+          total: { $sum: "$amount" },
           count: { $sum: 1 }
         }
       }
     ]);
 
-    return result.length > 0
-      ? { total: result[0].totalRetraits, count: result[0].count }
-      : { total: 0, count: 0 };
+    const details = result.map((g: any) => ({
+      currency: g._id || "CDF",
+      total: g.total,
+      count: g.count
+    }));
+
+    const total = details.reduce((acc, d) => acc + d.total, 0);
+    const count = details.reduce((acc, d) => acc + d.count, 0);
+
+    return { total, count, details };
   }
 
   /**
@@ -205,11 +243,12 @@ export class WalletService {
       totalNetInBase += netInBase;
     }
 
-    // Retraits en base (supposés en devise d'affichage par défaut)
-    const retraitsInBase = await this.currencyService.toBase(
-      retraitsInfo.total,
-      displayCurrency
-    );
+    // ✅ Retraits : convertir CHAQUE devise séparément vers la base
+    let retraitsInBase = 0;
+    for (const r of retraitsInfo.details) {
+      const amountInBase = await this.currencyService.toBase(r.total, r.currency);
+      retraitsInBase += amountInBase;
+    }
 
     const walletInBase = Math.max(totalNetInBase - retraitsInBase, 0);
 
@@ -227,6 +266,7 @@ export class WalletService {
       ordersCount: caInfo.count,
       retraitsCount: retraitsInfo.count,
       details,
+      retraitsDetails: retraitsInfo.details,
       totalInBase: {
         currency: baseCurrency,
         ca: Math.round(totalCaInBase * 100) / 100,
@@ -335,7 +375,6 @@ export class WalletService {
   /**
    * Récupère les wallets de tous les vendeurs avec leurs informations
    */
-
   async getAllWallets(): Promise<IWalletInfo[]> {
     // Récupérer TOUS les vendeurs de la collection Vendeur
     const allVendeurs = await User.find({ role: "vendeur" }).select("_id").lean();
@@ -351,11 +390,9 @@ export class WalletService {
     return wallets;
   }
 
-
-    /**
+  /**
    * Récupère le wallet Cabunet (commission plateforme)
    */
-  
   async getCabunetWallet(): Promise<{
     generee: number;
     retiree: number;
@@ -371,7 +408,7 @@ export class WalletService {
       0
     );
 
-    // Retraits cabunet déjà effectués
+    // Retraits cabunet déjà effectués — ✅ fallback CDF
     const retraitsResult = await Retrait.aggregate([
       {
         $match: {
@@ -380,29 +417,52 @@ export class WalletService {
         },
       },
       {
+        $addFields: {
+          currencySafe: {
+            $cond: [
+              { $or: [{ $eq: ["$currency", null] }, { $eq: ["$currency", ""] }] },
+              "CDF",
+              "$currency",
+            ],
+          },
+        },
+      },
+      {
         $group: {
-          _id: null,
+          _id: "$currencySafe",
           total: { $sum: "$amount" },
         },
       },
     ]);
 
-    const retiree = retraitsResult[0]?.total || 0;
+    // ✅ Convertir chaque devise vers la devise d'affichage
+    const displayCurrency = setting.defaultDisplayCurrency || "CDF";
+    let retiree = 0;
+    for (const r of retraitsResult) {
+      const amountInDisplay = await this.currencyService.fromBase(
+        await this.currencyService.toBase(r.total, r._id || "CDF"),
+        displayCurrency
+      );
+      retiree += amountInDisplay;
+    }
+
     const disponible = Math.max(generee - retiree, 0);
 
     return {
       generee,
       retiree,
       disponible,
-      currency: setting.defaultDisplayCurrency || "CDF",
+      currency: displayCurrency,
     };
   }
+
   /**
    * Vide le cache
    */
   invalidateCache(): void {
     this.currencyService.invalidateCache();
   }
-
-
 }
+
+
+export const walletService = new WalletService()

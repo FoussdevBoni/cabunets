@@ -5,7 +5,10 @@ export interface IRetrait extends Document {
     vendeurId?: mongoose.Types.ObjectId;
     vendeur?: mongoose.Types.ObjectId;
     type: 'cabunet' | 'vendeur';
+
     amount: number;
+    soldeWalletAvant?: number;
+    soldeWalletApres?: number
     payoutId?: string
     correspondent?: string;
     currency: "CDF" | "USD";
@@ -41,9 +44,18 @@ const RetraitSchema = new Schema<IRetrait>(
             default: "vendeur",
             index: true,
         },
+        soldeWalletAvant: {
+            type: Number,
+            required: false,
+        },
         amount: {
             type: Number,
             required: true,
+        },
+
+        soldeWalletApres: {
+            type: Number,
+            required: false,
         },
         payoutId: {
             type: String,

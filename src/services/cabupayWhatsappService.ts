@@ -81,7 +81,7 @@ export class CabupayWhatsappService {
     try {
       const payload = {
         to: data.whatsappNumber,
-        templateName: 'hello_world',
+        templateName: 'notification_cabunets',
         headerVariables: {
           title: data.title,
         },

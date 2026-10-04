@@ -80,7 +80,7 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
         // ✅ Mise à jour des champs WhatsApp UNIQUEMENT si l'envoi a réussi
         order.whatsappSent = true;
         order.whatsappSentAt = new Date();
-        
+        order.whatsappSentMode = 'auto'; 
         console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
       } catch (whatsappError: any) {
         // ❌ En cas d'échec, on ne met pas à jour les champs whatsappSent
