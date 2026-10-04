@@ -60,6 +60,10 @@ export const retraitService = {
     };
   },
 
+  async refreshRetrait(): Promise<any> {
+    return 
+  },
+
   /**
    * Validation admin : déclenche RÉELLEMENT le payout PawaPay.
    * Reprend la logique qui était dans validateRetraitByAdmin.
@@ -124,7 +128,7 @@ export const retraitService = {
       retrait.rejectReason = "Doublon ignoré";
     } else if (status === "ACCEPTED") {
       // En attente du callback final PawaPay
-      retrait.status = "PENDING";
+      retrait.status = "ACCEPTED";
     }
 
     retrait.updatedAt = new Date();
@@ -313,7 +317,7 @@ export const retraitService = {
       retrait.status = "PENDING";
       retrait.rejectReason = "Doublon ignoré";
     } else if (status === "ACCEPTED") {
-      retrait.status = "PENDING";
+      retrait.status = "ACCEPTED";
     }
 
     await retrait.save();
