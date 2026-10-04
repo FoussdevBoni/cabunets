@@ -383,6 +383,7 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
           const walletApres = await walletService.getWalletDisponible(
             retrait.vendeurId.toString()
           );
+          
           retrait.soldeWalletApres = walletApres.totalInDisplay.wallet;
           
           console.log(
