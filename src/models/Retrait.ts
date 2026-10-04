@@ -8,6 +8,7 @@ export interface IRetrait extends Document {
 
     amount: number;
     soldeWalletAvant?: number;
+    soldeWalletAuMomentDemande?: number
     soldeWalletApres?: number
     payoutId?: string
     correspondent?: string;
@@ -43,6 +44,10 @@ const RetraitSchema = new Schema<IRetrait>(
             required: true,
             default: "vendeur",
             index: true,
+        },
+          soldeWalletAuMomentDemande: {
+            type: Number,
+            required: false,
         },
         soldeWalletAvant: {
             type: Number,

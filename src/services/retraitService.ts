@@ -49,7 +49,7 @@ export const retraitService = {
 
     const retrait = new Retrait({
       ...data,
-      soldeWalletAvant: walletInfo.totalInDisplay.wallet,
+      soldeWalletAuMomentDemande: walletInfo.totalInDisplay.wallet,
       status: "PENDING", // en attente de validation admin
     });
     await retrait.save();
@@ -61,7 +61,7 @@ export const retraitService = {
   },
 
   async refreshRetrait(): Promise<any> {
-    return 
+    return
   },
 
   /**
@@ -102,11 +102,14 @@ export const retraitService = {
       );
     }
 
+    // ✅ Snapshot du solde juste AVANT le débit
+    retrait.soldeWalletAvant = walletInfo.totalInDisplay.wallet;
+
     // Initiation du payout PawaPay
     const payoutResult = await cabupayPayoutService.initiatePayout({
       amount: retrait.amount.toString(),
       currency: retrait.currency || "CDF",
-      phone:  formatPhone(retrait.methodPayment?.number) || "",
+      phone: formatPhone(retrait.methodPayment?.number) || "",
       correspondent: retrait.correspondent || "",
       clientReference: retrait._id.toString(),
     });
