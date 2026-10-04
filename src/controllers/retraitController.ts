@@ -254,14 +254,14 @@ export const createRetraitCabunet = async (req: Request, res: Response): Promise
       return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
 
     }
-    if ( currentUser.role !== "admin") {
+    if (currentUser.role !== "admin") {
       return res.status(403).json({ error: "Vous n'êtes pas autorisé à effectué cette opération" });
 
     }
 
 
 
- 
+
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Le montant est obligatoire et doit être supérieur à 0' });
     }
@@ -367,9 +367,13 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
       return;
     }
 
+    // ============================
     // Mapping des statuts PawaPay vers vos statuts
+    // ============================
     if (status === 'COMPLETED') {
       retrait.status = 'COMPLETED';
+      retrait.validatedAt = new Date(); // ✅ date de validation
+
       if (providerTransactionId) {
         (retrait as any).providerTransactionId = providerTransactionId;
       }
@@ -377,59 +381,23 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
         (retrait as any).payoutId = payoutId;
       }
 
-      // ✅ Mise à jour du solde APRÈS (fiable, car le débit est effectif)
-      if (retrait.vendeurId) {
-        try {
-          const walletApres = await walletService.getWalletDisponible(
-            retrait.vendeurId.toString()
-          );
-          
-          retrait.soldeWalletApres = walletApres.totalInDisplay.wallet;
-          
-          console.log(
-            `[Payout Webhook] Retrait ${retrait._id} — soldeWalletAvant: ${retrait.soldeWalletAvant}, soldeWalletApres: ${retrait.soldeWalletApres}`
-          );
-        } catch (walletErr: any) {
-          console.error(
-            `[Payout Webhook] Impossible de récupérer le wallet du vendeur ${retrait.vendeurId}:`,
-            walletErr.message || walletErr
-          );
-          // Fallback : calcul simple
-          if (retrait.soldeWalletAvant !== undefined && retrait.amount) {
-            retrait.soldeWalletApres = retrait.soldeWalletAvant - retrait.amount;
-          }
-        }
-
-        // 📲 Notification WhatsApp (isolée : une erreur ici ne casse pas le reste)
-        try {
-          const vendeur = await vendeurService.getVendeurById(retrait.vendeurId.toString());
-
-          if (vendeur?.whatsappNumber) {
-            const whatsappNotification = {
-              whatsappNumber: vendeur.whatsappNumber,
-              title: "Retrait effectué",
-              body: `Votre retrait de ${retrait.amount} ${retrait.currency || 'CDF'} a été effectué avec succès. Nouveau solde : ${retrait.soldeWalletApres ?? 'N/A'} ${retrait.currency || 'CDF'}.`,
-            };
-
-            await cabupayWhatsappService.notifyAnnonce(whatsappNotification);
-          } else {
-            console.warn(
-              `[Payout Webhook] Aucun numéro WhatsApp pour le vendeur ${retrait.vendeurId}`
-            );
-          }
-        } catch (whatsappErr: any) {
-          console.error(
-            `[Payout Webhook] Échec notification WhatsApp pour le retrait ${retrait._id}:`,
-            whatsappErr.message || whatsappErr
-          );
-          // On ne bloque pas : le webhook doit rester idempotent et fiable
-        }
+      // ✅ Calcul direct : soldeWalletApres = soldeWalletAvant - amount
+      if (retrait.soldeWalletAvant !== undefined) {
+        retrait.soldeWalletApres = retrait.soldeWalletAvant - retrait.amount;
+      } else {
+        console.warn(
+          `[Payout Webhook] ⚠️ soldeWalletAvant manquant pour ${retrait._id} — soldeWalletApres non calculé`
+        );
       }
 
-      console.log(`[Payout Webhook] Retrait ${retrait._id} complété`);
+      console.log(
+        `[Payout Webhook] Retrait ${retrait._id} — soldeWalletAvant: ${retrait.soldeWalletAvant}, soldeWalletApres (calculé): ${retrait.soldeWalletApres}`
+      );
 
     } else if (status === 'FAILED') {
       retrait.status = 'REJECTED';
+      retrait.rejectedAt = new Date(); // ✅ date de rejet
+
       if (failureReason) {
         if (typeof failureReason === 'object' && failureReason !== null && 'failureMessage' in failureReason) {
           const code = (failureReason as any).failureCode || 'FAILED';
@@ -443,35 +411,106 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
       } else {
         retrait.rejectReason = 'Retrait échoué';
       }
+
       console.warn(`[Payout Webhook] Retrait ${retrait._id} rejeté:`, retrait.rejectReason);
 
       // En cas d'échec, le solde n'a pas été débité → soldeWalletApres = soldeWalletAvant
       if (retrait.soldeWalletAvant !== undefined) {
         retrait.soldeWalletApres = retrait.soldeWalletAvant;
-      }
-
-      // 📲 Notification WhatsApp d'échec (optionnel, isolée aussi)
-      if (retrait.vendeurId) {
-        try {
-          const vendeur = await vendeurService.getVendeurById(retrait.vendeurId.toString());
-
-          if (vendeur?.whatsappNumber) {
-            await cabupayWhatsappService.notifyAnnonce({
-              whatsappNumber: vendeur.whatsappNumber,
-              title: "Retrait échoué",
-              body: `Votre demande de retrait de ${retrait.amount} ${retrait.currency || 'CDF'} a échoué. Raison : ${retrait.rejectReason || 'inconnue'}.`,
-            });
-          }
-        } catch (whatsappErr: any) {
-          console.error(
-            `[Payout Webhook] Échec notification WhatsApp (échec) pour ${retrait._id}:`,
-            whatsappErr.message || whatsappErr
-          );
-        }
+      } else {
+        console.warn(
+          `[Payout Webhook] ⚠️ soldeWalletAvant manquant pour ${retrait._id} — soldeWalletApres non calculé (REJECTED)`
+        );
       }
     }
 
+    // ============================
+    // Sauvegarde principale (statut + soldes calculés + dates)
+    // ============================
     await retrait.save();
+
+    // ============================
+    // Snapshot post-save : walletDisponible (audit / vérification)
+    // ============================
+    if (retrait.vendeurId) {
+      try {
+        const wallet = await walletService.getWalletDisponible(retrait.vendeurId.toString());
+        retrait.walletDisponible = wallet.totalInDisplay.wallet;
+
+        if (
+          status === 'COMPLETED' &&
+          retrait.walletDisponible !== retrait.soldeWalletApres
+        ) {
+          console.warn(
+            `[Payout Webhook] ⚠️ Écart détecté sur ${retrait._id}: ` +
+            `soldeWalletApres=${retrait.soldeWalletApres}, walletDisponible=${retrait.walletDisponible}, ` +
+            `delta=${(retrait.soldeWalletApres ?? 0) - retrait.walletDisponible}`
+          );
+        } else if (status === 'COMPLETED') {
+          console.log(
+            `[Payout Webhook] ✅ Solde cohérent pour ${retrait._id}: ${retrait.walletDisponible}`
+          );
+        }
+
+        await retrait.save(); // 2e save : uniquement pour walletDisponible
+      } catch (walletErr: any) {
+        console.error(
+          `[Payout Webhook] Impossible de renseigner walletDisponible pour ${retrait._id}:`,
+          walletErr.message || walletErr
+        );
+      }
+    }
+
+    // ============================
+    // Notification WhatsApp (COMPLETED)
+    // ============================
+    if (status === 'COMPLETED' && retrait.vendeurId) {
+      try {
+        const vendeur = await vendeurService.getVendeurById(retrait.vendeurId.toString());
+
+        if (vendeur?.whatsappNumber) {
+          await cabupayWhatsappService.notifyAnnonce({
+            whatsappNumber: vendeur.whatsappNumber,
+            title: "Retrait effectué",
+            body: `Votre retrait de ${retrait.amount} ${retrait.currency || 'CDF'} a été effectué avec succès. Nouveau solde : ${retrait.soldeWalletApres ?? 'N/A'} ${retrait.currency || 'CDF'}.`,
+          });
+        } else {
+          console.warn(
+            `[Payout Webhook] Aucun numéro WhatsApp pour le vendeur ${retrait.vendeurId}`
+          );
+        }
+      } catch (whatsappErr: any) {
+        console.error(
+          `[Payout Webhook] Échec notification WhatsApp pour le retrait ${retrait._id}:`,
+          whatsappErr.message || whatsappErr
+        );
+      }
+
+      console.log(`[Payout Webhook] Retrait ${retrait._id} complété`);
+    }
+
+    // ============================
+    // Notification WhatsApp (FAILED)
+    // ============================
+    if (status === 'FAILED' && retrait.vendeurId) {
+      try {
+        const vendeur = await vendeurService.getVendeurById(retrait.vendeurId.toString());
+
+        if (vendeur?.whatsappNumber) {
+          await cabupayWhatsappService.notifyAnnonce({
+            whatsappNumber: vendeur.whatsappNumber,
+            title: "Retrait échoué",
+            body: `Votre demande de retrait de ${retrait.amount} ${retrait.currency || 'CDF'} a échoué. Raison : ${retrait.rejectReason || 'inconnue'}.`,
+          });
+        }
+      } catch (whatsappErr: any) {
+        console.error(
+          `[Payout Webhook] Échec notification WhatsApp (échec) pour ${retrait._id}:`,
+          whatsappErr.message || whatsappErr
+        );
+      }
+    }
+
     res.status(200).json({ success: true, message: 'Webhook traité' });
 
   } catch (error: any) {
@@ -479,8 +518,6 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
     res.status(400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
   }
 };
-
-
 /**
  * POST /retraits/resend-callback
  * Demander à PawaPay de renvoyer le callback d'un retrait

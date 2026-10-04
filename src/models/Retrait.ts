@@ -10,8 +10,9 @@ export interface IRetrait extends Document {
     soldeWalletAvant?: number;
     soldeWalletAuMomentDemande?: number;
     soldeWalletApresPrevu?: number;
-    soldeWalletApres?: number
-    payoutId?: string
+    soldeWalletApres?: number;
+    walletDisponible?: number;
+    payoutId?: string;
     correspondent?: string;
     currency: "CDF" | "USD";
     methodPayment: {
@@ -21,6 +22,8 @@ export interface IRetrait extends Document {
     };
     rejectReason?: string;
     status: "PENDING" | "COMPLETED" | "REJECTED" | 'ACCEPTED' | 'DUPLICATE_IGNORED';
+    validatedAt?: Date;
+    rejectedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -62,8 +65,11 @@ const RetraitSchema = new Schema<IRetrait>(
             type: Number,
             required: true,
         },
-
         soldeWalletApres: {
+            type: Number,
+            required: false,
+        },
+        walletDisponible: {
             type: Number,
             required: false,
         },
@@ -71,19 +77,16 @@ const RetraitSchema = new Schema<IRetrait>(
             type: String,
             required: false,
         },
-
         correspondent: {
             type: String,
             required: false,
         },
-
         currency: {
             type: String,
             required: true,
             enum: ["CDF", "USD"],
-            default: "CDF"
+            default: "CDF",
         },
-
         methodPayment: {
             type: {
                 type: String,
@@ -108,11 +111,19 @@ const RetraitSchema = new Schema<IRetrait>(
             default: "PENDING",
             required: true,
         },
+        // ✅ Nouveaux champs de date
+        validatedAt: {
+            type: Date,
+            required: false,
+        },
+        rejectedAt: {
+            type: Date,
+            required: false,
+        },
     },
     {
         timestamps: true,
     }
 );
-
 
 export default mongoose.model<IRetrait>("Retrait", RetraitSchema);
