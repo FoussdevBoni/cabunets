@@ -49,6 +49,7 @@ export const retraitService = {
 
     const retrait = new Retrait({
       ...data,
+      soldeWalletAvant: walletInfo.totalInDisplay.wallet,
       status: "PENDING", // en attente de validation admin
     });
     await retrait.save();

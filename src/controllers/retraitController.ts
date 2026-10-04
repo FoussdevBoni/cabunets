@@ -384,6 +384,7 @@ export const handlePayoutWebhook = async (req: Request, res: Response): Promise<
             retrait.vendeurId.toString()
           );
           retrait.soldeWalletApres = walletApres.totalInDisplay.wallet;
+          
           console.log(
             `[Payout Webhook] Retrait ${retrait._id} — soldeWalletAvant: ${retrait.soldeWalletAvant}, soldeWalletApres: ${retrait.soldeWalletApres}`
           );
