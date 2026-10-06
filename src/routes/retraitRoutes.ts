@@ -16,23 +16,26 @@ import {
   resendPayoutCallback,
   getPayout,
   getPayoutDirect,
-  getPayoutDirect as getPayoutDirectHandler
 } from '../controllers/retraitController';
 import { authMiddleware } from '../middlewares/authMiddleware';
+import { auditLogger } from '../middlewares/auditLogger';
 
 const router = express.Router();
 
+// 🔓 Webhook public (PAS d'auth, PAS d'audit user)
 router.post('/cabupay-callback', handlePayoutWebhook);
 
+// 🔐 Tout le reste est protégé + audité
 router.use(authMiddleware);
+router.use(auditLogger);
 
-router.get('/', getRetraits);
+// Routes spécifiques d'abord
 router.get('/today', getTodayRetraits);
 router.get('/stats', getRetraitsStats);
-
-// Routes payout (à placer AVANT /:id pour éviter les conflits)
 router.get('/payout/direct/:payoutId', getPayoutDirect);
 router.get('/payout/:referenceOrId', getPayout);
+
+router.get('/', getRetraits);
 
 router.post('/', createRetrait);
 router.post('/resend-callback', resendPayoutCallback);

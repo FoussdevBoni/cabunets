@@ -12,14 +12,18 @@ import {
   getReclamationsStats,
 } from '../controllers/reclamationController';
 import { authMiddleware } from '../middlewares/authMiddleware';
+import { auditLogger } from '../middlewares/auditLogger';
 
 const router = express.Router();
 
 router.use(authMiddleware);
+router.use(auditLogger);   // ✅ une seule fois → toutes les routes auditées
 
-router.get('/', getReclamations);
+// Routes spécifiques AVANT /:id
 router.get('/today', getTodayReclamations);
 router.get('/stats', getReclamationsStats);
+
+router.get('/', getReclamations);
 router.get('/:id', getReclamationById);
 
 router.post('/', createReclamation);

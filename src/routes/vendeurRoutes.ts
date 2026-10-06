@@ -1,5 +1,4 @@
 import express from 'express';
-import { updateUserData } from '../controllers/authController';
 import { deleteVendeur, getVendeurById, getVendeurs, updateVendeur } from '../controllers/vendeurController';
 import { authMiddleware } from '../middlewares/authMiddleware';
 

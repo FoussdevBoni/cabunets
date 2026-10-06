@@ -1,17 +1,19 @@
 import express from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
-import { createOffre, deleteOffre, getOffreById, getOffres, updateOffre } from '../controllers/offreController';
-
-
+import { auditLogger } from '../middlewares/auditLogger';
+import {
+    createOffre, deleteOffre, getOffreById, getOffres, updateOffre
+} from '../controllers/offreController';
 
 const router = express.Router();
 
-// Routes pour les Companie
-router.post('/', authMiddleware,  createOffre);
-router.get('/',  getOffres);
-router.get('/:id', getOffreById);
+// 🔐 Routes protégées + auditées
+router.post('/', authMiddleware, auditLogger, createOffre);
+router.put('/:id', authMiddleware, auditLogger, updateOffre);
+router.delete('/:id', authMiddleware, auditLogger, deleteOffre);
 
-router.put('/:id',authMiddleware, updateOffre);
-router.delete('/:id',authMiddleware, deleteOffre);
+// 🔓 Routes publiques (pas d'auth, pas d'audit)
+router.get('/', getOffres);
+router.get('/:id', getOffreById);
 
 export default router;

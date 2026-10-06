@@ -8,6 +8,8 @@ import path from "path";
 import fileRoutes from "./routes/fileRoutes";
 import emailRoutes from "./routes/emailRoutes";
 import routes from "./routes";
+import { authMiddleware } from "./middlewares/authMiddleware";
+import { auditLogger } from "./middlewares/auditLogger";
 
 // Charger variables d'environnement
 dotenv.config();
@@ -39,14 +41,12 @@ mongoose
     console.error("❌ Error connecting to MongoDB:", error)
   );
 
-/* =====================================================
-   🔹 STATIC FILES
-===================================================== */
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 
 /* =====================================================
    🔹 ROUTES
 ===================================================== */
+
 app.use("/api", routes); // routes générales
 app.use("/api/files", fileRoutes);
 app.use("/api/email", emailRoutes);

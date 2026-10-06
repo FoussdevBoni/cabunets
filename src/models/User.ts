@@ -5,12 +5,17 @@ import bcrypt from "bcrypt";
 export interface IUser extends Document {
   email: string;
   password: string;
-  role: 'vendeur' | 'admin' | 'client';
+  role: "vendeur" | "admin" | "client";
   username?: string;
   avatar?: string;
   isVerified: boolean;
   isPremium: boolean;
-  isActive: boolean; // Nouveau champ pour activer/désactiver le compte
+  isActive: boolean;
+
+  // 🆕 Suivi d'activité
+  lastLoginAt?: Date;
+  loginCount: number;
+  actionsCount: number;
 
   passwordResetOtp?: string;
   passwordResetExpires?: Date;
@@ -25,21 +30,46 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     password: { type: String, required: true, select: false },
     username: { type: String },
     avatar: { type: String },
-    role: { type: String, enum: ["client", "vendeur", "admin"], required: true , default: 'client' },
+    role: {
+      type: String,
+      enum: ["client", "vendeur", "admin"],
+      required: true,
+      default: "client",
+    },
     isVerified: { type: Boolean, default: false },
     isPremium: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true }, // Par défaut, le compte est actif
+    isActive: { type: Boolean, default: true },
+
+    // 🆕 Suivi d'activité
+    lastLoginAt: { type: Date, index: true },
+    loginCount: { type: Number, default: 0, min: 0 },
+    actionsCount: { type: Number, default: 0, min: 0 },
+
     passwordResetOtp: { type: String, select: false },
     passwordResetExpires: { type: Date },
     emailConfirmationOtp: { type: String, select: false },
     emailConfirmationExpires: { type: Date },
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+// 🆕 Index pour requêter les top users actifs
+userSchema.index({ role: 1, actionsCount: -1 });
+userSchema.index({ role: 1, loginCount: -1 });
 
 // Hash automatique du mot de passe
 userSchema.pre<IUser>("save", async function (next) {
@@ -50,7 +80,9 @@ userSchema.pre<IUser>("save", async function (next) {
 });
 
 // Comparer le mot de passe
-userSchema.methods.comparePassword = async function (candidatePassword: string) {
+userSchema.methods.comparePassword = async function (
+  candidatePassword: string
+) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 

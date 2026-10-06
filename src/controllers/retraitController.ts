@@ -6,6 +6,7 @@ import { walletService } from '../services/walletService';
 import { vendeurService } from '../services/vendeurService';
 import { cabupayWhatsappService } from '../services/cabupayWhatsappService';
 
+
 export const createRetrait = async (req: Request, res: Response): Promise<Response> => {
 
   const currentUser = req.user
@@ -331,6 +332,8 @@ export const getPayout = async (req: Request, res: Response): Promise<Response> 
     return res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
 
 /**
  * 3. Webhook pour les retraits

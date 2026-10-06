@@ -11,6 +11,10 @@ import reclamationRoutes from './reclamationRoutes'
 import walletRoutes from './walletRoutes'
 import settingsRoutes from './settingsRoutes'
 import notificationRoutes from './notificationRoutes'
+import adminRoutes from "./adminRoutes";
+import statsRoutes from "./statsRoutes";
+
+
 
 // Création de l'instance du routeur
 const router = Router();
@@ -29,8 +33,8 @@ router.use('/reclamations', reclamationRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/notifications', notificationRoutes);
-
-
+router.use("/admin", adminRoutes);
+router.use("/stats", statsRoutes);
 
 
 
