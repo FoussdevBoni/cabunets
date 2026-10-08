@@ -1,422 +1,222 @@
 // controllers/orderController.ts
-import { Request, Response } from 'express';
-import { Order } from '../models/Order';
-import { cabupayPaymentService, CreateDepositDTO } from '../services/cabupayPaymentService';
-import { getPawapayError } from '../utils/getPawapayErrors';
-import { OrderNotificationService } from '../services/orderNotificationService';
+import { Request, Response } from "express";
+import { orderService, OrderFilters } from "../services/orderService";
 
+// Helper pour parser les filtres communs
+function parseFilters(req: Request): OrderFilters {
+  const {
+    status, vendeurId, clientId, network, search,
+    day, week, month, year, startDate, endDate,
+  } = req.query;
+
+  return {
+    status: status as string,
+    vendeurId: vendeurId as string,
+    clientId: clientId as string,
+    network: network as string,
+    search: search as string,
+    day: day === "true" || day === "1",
+    week: week === "true" || week === "1",
+    month: month === "true" || month === "1",
+    year: year === "true" || year === "1",
+    startDate: startDate as string,
+    endDate: endDate as string,
+  };
+}
+
+// ================= CREATE =================
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const {
-      price,
-      amount,
-      paymentPhone,
-      correspondent,
-      currency = 'USD',
-      country = 'COD',
-      description,
-      units,
-      network,
-    } = req.body;
-
-    // 1. Validation stricte des données requises pour le paiement
-    if (!paymentPhone || typeof paymentPhone !== 'string' || !paymentPhone.trim()) {
-      return res.status(400).json({
-        error: 'Le numéro de téléphone pour le paiement (paymentPhone) est obligatoire.',
-      });
-    }
-
-    if (!correspondent || typeof correspondent !== 'string' || !correspondent.trim()) {
-      return res.status(400).json({
-        error: 'Le moyen de paiement / opérateur (correspondent) est obligatoire.',
-      });
-    }
-
-    const targetAmount = price || amount;
-    if (!targetAmount) {
-      return res.status(400).json({
-        error: 'Le prix de la commande (price) est obligatoire.',
-      });
-    }
-
-    // 2. Opérateur de paiement transmis directement par le client
-    const selectedCorrespondent = correspondent.trim().toUpperCase();
-
-    // 3. Création de la commande en BDD avec le moyen de paiement choisi
-    const order = await Order.create({
-      ...req.body,
-      correspondent: selectedCorrespondent,
-      country,
-      currency,
-      status: 'PENDING',
-    });
-
-    // 4. Description dynamique
-    const finalDescription = description || `Achat de ${units || ''} unités ${network || ''} - Cmd #${order._id}`;
-
-    // 5. Construction du DTO Cabupay
-    const callbackUrl = process.env.CABUPAY_CALLBACK_URL || 'https://cabunets-production.up.railway.app/api/payments/cabupay-callback';
-
-    const depositDTO: CreateDepositDTO = {
-      appId: process.env.CABUPAY_APP_ID || 'CABUNETS',
-      clientReference: order._id.toString(),
-      amount: targetAmount.toString(),
-      currency: currency,
-      phone: paymentPhone,
-      correspondent: selectedCorrespondent,
-      country: country,
-      callbackUrl: callbackUrl,
-      description: finalDescription,
-    };
-
-    // 6. Initiation de la demande de dépôt
-    const paymentResponse = await cabupayPaymentService.createDeposit(depositDTO);
-
-    // Extraction des informations clés du retour paiement
-    const paymentData = paymentResponse?.data;
-    const depositId = paymentData?.depositId;
-
-    if (depositId) {
-      order.depositId = depositId;
-      order.depositExistence = 'FOUND';
-    }
-
-    // 7. Vérification d'un rejet ou échec synchrone (REJECTED / FAILED / success = false)
-    const pawaStatus = paymentData?.status?.toUpperCase() || paymentData?.pawaResponse?.status?.toUpperCase();
-    const isRejected = pawaStatus === 'REJECTED' || pawaStatus === 'FAILED' || paymentResponse?.success === false;
-
-    if (isRejected) {
-      // Extraction du message d'erreur précis renvoyé par PawaPay/Cabupay
-      const failureObj = paymentData?.pawaResponse?.failureReason;
-      const failureMsg = failureObj?.failureMessage || paymentResponse?.message || 'Paiement rejeté par la passerelle';
-      const failureCode = failureObj?.failureCode;
-
-      order.status = 'FAILED';
-      order.failureCode = failureCode
-      order.failureReason = failureCode ? `${failureCode}: ${failureMsg}` : failureMsg;
-      const messageError = getPawapayError(failureCode)
-      await order.save();
-
-      return res.status(400).json({
-        success: false,
-        error: messageError || `Échec de l'initialisation du paiement: ${failureMsg}`,
-        order,
-        payment: {
-          success: false,
-          message: failureMsg,
-          data: paymentData,
-        },
-      });
-    }
-
-    // 8. Succès de l'initialisation (statut ACCEPTED ou PROCESSING)
-    await order.save();
-
+    const result = await orderService.createOrder(req.body);
     return res.status(201).json({
       success: true,
-      message: 'Commande créée et paiement initialisé',
-      order,
-      payment: paymentResponse,
+      message: "Commande créée et paiement initialisé",
+      ...result,
     });
-
   } catch (err: any) {
-    console.error('❌ Erreur createOrder:', err.message || err);
+    console.error("❌ Erreur createOrder:", err.message || err);
+
+    // Erreur applicative (400) avec order + payment
+    if (err.statusCode && err.order) {
+      return res.status(err.statusCode).json({
+        success: false,
+        error: err.message,
+        order: err.order,
+        payment: err.payment,
+      });
+    }
+
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+
     return res.status(500).json({
-      error: 'Erreur lors de la création de la commande ou de l\'initiation du paiement',
+      error: "Erreur lors de la création de la commande ou de l'initiation du paiement",
       details: err.message || err,
     });
   }
 };
 
+// ================= LIST (pagination + filtres) =================
 export const getOrders = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { day, week, month, year, ...filters } = req.query;
-    let query: any = { ...filters };
+    const filters = parseFilters(req);
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 50;
 
-    if (day || week || month || year) {
-      const now = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (day) {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      } else if (week) {
-        const dayOfWeek = now.getDay();
-        start = new Date(now);
-        start.setDate(now.getDate() - dayOfWeek);
-        start.setHours(0, 0, 0, 0);
-        end = new Date(start);
-        end.setDate(start.getDate() + 7);
-      } else if (month) {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      } else if (year) {
-        start = new Date(now.getFullYear(), 0, 1);
-        end = new Date(now.getFullYear() + 1, 0, 1);
-      }
-
-      if (start && end) {
-        query.createdAt = { $gte: start, $lt: end };
-      }
-    }
-
-    const orders = await Order.find(query).sort({ createdAt: -1 });
-    return res.json(orders);
+    const result = await orderService.getOrders({ ...filters, page, limit });
+    return res.json(result);
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erreur lors de la récupération des commandes' });
+    console.error("getOrders error:", err);
+    return res.status(500).json({ error: "Erreur lors de la récupération des commandes" });
   }
 };
 
+// ================= STATS =================
+export const getOrdersStats = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const filters = parseFilters(req);
+    const stats = await orderService.getOrdersStats(filters);
+    return res.json(stats);
+  } catch (err: any) {
+    console.error("getOrdersStats error:", err);
+    return res.status(500).json({ error: "Erreur lors du calcul des statistiques" });
+  }
+};
+
+// ================= GET ONE =================
 export const getOrderById = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
+    const order = await orderService.getOrderById(req.params.id);
     return res.json(order);
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erreur lors de la récupération de la commande' });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    return res.status(500).json({ error: "Erreur lors de la récupération de la commande" });
   }
 };
 
+// ================= UPDATE =================
 export const updateOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const order = await Order.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
+    const order = await orderService.updateOrder(req.params.id, req.body);
     return res.json(order);
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erreur lors de la mise à jour de la commande' });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    return res.status(500).json({ error: "Erreur lors de la mise à jour de la commande" });
   }
 };
 
-export const deliverOrder = async (req: Request, res: Response): Promise<Response> => {
-  try {
-    const { id } = req.params;
-
-    const order = await Order.findById(id);
-    if (!order) {
-      return res.status(404).json({ error: 'Commande non trouvée' });
-    }
-
-    if (order.status !== 'COMPLETED') {
-      return res.status(400).json({
-        error: `Impossible de livrer une commande avec le statut "${order.status}". Le statut doit être "COMPLETED"`
-      });
-    }
-
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      {
-        status: 'DELIVERED',
-        deliveredAt: new Date()
-      },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: 'Commande marquée comme livrée avec succès',
-      order: updatedOrder
-    });
-
-  } catch (err: any) {
-    console.error('Erreur deliverOrder:', err);
-    return res.status(500).json({
-      error: 'Erreur lors de la mise à jour de la commande'
-    });
-  }
-};
-
+// ================= DELETE =================
 export const deleteOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const order = await Order.findByIdAndDelete(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Commande non trouvée' });
-    return res.json({ message: 'Commande supprimée avec succès' });
+    await orderService.deleteOrder(req.params.id);
+    return res.json({ message: "Commande supprimée avec succès" });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Erreur lors de la suppression de la commande' });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    return res.status(500).json({ error: "Erreur lors de la suppression de la commande" });
   }
 };
 
+// ================= DELIVER =================
+export const deliverOrder = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const order = await orderService.deliverOrder(req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: "Commande marquée comme livrée avec succès",
+      order,
+    });
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error("Erreur deliverOrder:", err);
+    return res.status(500).json({ error: "Erreur lors de la mise à jour de la commande" });
+  }
+};
+
+// ================= SYNC STATUS =================
 export const syncOrderStatus = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { id, orderId } = req.params;
     const targetId = id || orderId;
-
-    const order = await Order.findById(targetId);
-    if (!order) {
-      return res.status(404).json({ error: 'Commande introuvable' });
-    }
-
-    if (order.status === 'COMPLETED' || order.status === 'FAILED') {
-      return res.json({
-        status: order.status,
-        depositExistence: order.depositExistence,
-        order
-      });
-    }
-
-    if (!order.depositId) {
-      return res.status(400).json({
-        error: "Aucun depositId (Cabupay) associé à cette commande.",
-        order,
-      });
-    }
-
-    const response = await cabupayPaymentService.getDeposit(order.depositId);
-    const deposit = response.data;
-
-    if (deposit?.status === 'NOT_FOUND') {
-      order.depositExistence = 'NOT_FOUND';
-      await order.save();
-
-      return res.json({
-        status: order.status,
-        depositExistence: order.depositExistence,
-        order,
-        payment: deposit
-      });
-    }
-
-    order.depositExistence = 'FOUND';
-
-    const depositData = deposit?.data;
-    const paymentStatus = depositData?.status?.toUpperCase();
-
-    if (paymentStatus === 'COMPLETED') {
-      order.status = 'COMPLETED';
-    } else if (paymentStatus === 'FAILED') {
-      order.status = 'FAILED';
-      if (depositData?.failureReason?.failureMessage) {
-        order.failureReason = depositData.failureReason.failureMessage;
-        order.failureCode = depositData.failureCode;
-      }
-    }
-
- 
-
-    await order.save();
+    const result = await orderService.syncOrderStatus(targetId);
 
     return res.json({
-      status: order.status,
-      depositExistence: order.depositExistence,
-      depositPaymentStatus: paymentStatus,
-      order,
-      payment: deposit
+      status: result.order.status,
+      depositExistence: result.order.depositExistence,
+      depositPaymentStatus: result.depositPaymentStatus,
+      order: result.order,
+      payment: result.payment,
     });
-
   } catch (err: any) {
-    console.error('❌ Erreur syncOrderStatus:', err.message || err);
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message, order: err.order });
+    }
+    console.error("❌ Erreur syncOrderStatus:", err.message || err);
     return res.status(500).json({
-      error: 'Erreur lors de la synchronisation du statut avec Cabupay',
+      error: "Erreur lors de la synchronisation du statut avec Cabupay",
       details: err.message || err,
     });
   }
 };
 
+// ================= TRAIT ORDER =================
 export const traitOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { id, orderId } = req.params;
     const targetId = id || orderId;
-
-    const order = await Order.findById(targetId);
-    if (!order) {
-      return res.status(404).json({ error: 'Commande introuvable' });
-    }
-
-    if (order.status === 'COMPLETED' || order.status === 'FAILED' || order.status === 'DELIVERED') {
-      return res.json({
-        status: order.status,
-        depositExistence: order.depositExistence,
-        order
-      });
-    }
-
-    if (!order.depositId) {
-      return res.status(400).json({
-        error: "Aucun depositId (Cabupay) associé à cette commande.",
-        order,
-      });
-    }
-
-    const response = await cabupayPaymentService.getDeposit(order.depositId);
-    const deposit = response.data;
-
-    if (deposit?.status === 'NOT_FOUND') {
-      order.depositExistence = 'NOT_FOUND';
-      await order.save();
-
-      return res.json({
-        status: order.status,
-        depositExistence: order.depositExistence,
-        order,
-        payment: deposit
-      });
-    }
-
-    order.depositExistence = 'FOUND';
-
-    const depositData = deposit?.data;
-    const paymentStatus = depositData?.status?.toUpperCase();
-
-    if (paymentStatus === 'COMPLETED') {
-      order.status = 'COMPLETED';
-    } else if (paymentStatus === 'FAILED') {
-      order.status = 'FAILED';
-      if (depositData?.failureReason?.failureMessage) {
-        order.failureReason = depositData.failureReason.failureMessage;
-        order.failureCode = depositData.failureCode;
-      }
-    }
-
-    // 🔥 Utilisation du service de notification
-    if (OrderNotificationService.shouldSendNotification(order, paymentStatus)) {
-      await OrderNotificationService.sendWhatsAppNotification(order , "manuel");
-    }
-
-    await order.save();
+    const result = await orderService.traitOrder(targetId);
 
     return res.json({
-      status: order.status,
-      depositExistence: order.depositExistence,
-      depositPaymentStatus: paymentStatus,
-      order,
-      payment: deposit
+      status: result.order.status,
+      depositExistence: result.order.depositExistence,
+      depositPaymentStatus: result.depositPaymentStatus,
+      order: result.order,
+      payment: result.payment,
     });
-
   } catch (err: any) {
-    console.error('❌ Erreur traitOrder:', err.message || err);
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: err.message, order: err.order });
+    }
+    console.error("❌ Erreur traitOrder:", err.message || err);
     return res.status(500).json({
-      error: 'Erreur lors de la synchronisation du statut avec Cabupay',
+      error: "Erreur lors de la synchronisation du statut avec Cabupay",
       details: err.message || err,
     });
   }
 };
 
-export const sendPendingWhatsAppMessages = async (req: Request, res: Response): Promise<Response> => {
+// ================= SEND PENDING WHATSAPP =================
+export const sendPendingWhatsAppMessages = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   try {
-    const result = await OrderNotificationService.sendAllPendingWhatsAppMessages();
+    const result = await orderService.sendPendingWhatsAppMessages();
 
     if (result.total === 0) {
       return res.status(200).json({
         success: true,
-        message: 'Aucune commande en attente d\'envoi WhatsApp',
-        total: 0
+        message: "Aucune commande en attente d'envoi WhatsApp",
+        total: 0,
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Traitement terminé',
+      message: "Traitement terminé",
       total: result.total,
       sent: result.sent,
-      failed: result.failed
+      failed: result.failed,
     });
-
   } catch (err: any) {
-    console.error('❌ Erreur:', err.message);
+    console.error("❌ Erreur:", err.message);
     return res.status(500).json({
       success: false,
-      error: 'Erreur lors de l\'envoi des messages',
-      details: err.message
+      error: "Erreur lors de l'envoi des messages",
+      details: err.message,
     });
   }
 };

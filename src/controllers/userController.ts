@@ -1,10 +1,37 @@
 // controllers/userController.ts
 import { Request, Response } from "express";
-import User from "../models/User";
+import { userService, UserFilters } from "../services/userService";
 import { register } from "./authController";
-import { Vendeur } from "../models/Vendeur";
-import { Client } from "../models/Client";
 
+// ============================================================
+// HELPERS
+// ============================================================
+
+function parseFilters(req: Request): UserFilters {
+  const {
+    role, isActive, isVerified, search,
+    day, week, month, year, startDate, endDate,
+  } = req.query;
+
+  return {
+    role: role as UserFilters["role"],
+    isActive:
+      isActive === "true" ? true : isActive === "false" ? false : undefined,
+    isVerified:
+      isVerified === "true" ? true : isVerified === "false" ? false : undefined,
+    search: search as string,
+    day: day === "true" || day === "1",
+    week: week === "true" || week === "1",
+    month: month === "true" || month === "1",
+    year: year === "true" || year === "1",
+    startDate: startDate as string,
+    endDate: endDate as string,
+  };
+}
+
+// ============================================================
+// CREATE (délégué à register)
+// ============================================================
 export const createUser = async (req: Request, res: Response) => {
   try {
     const user = await register(req, res);
@@ -14,343 +41,143 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-export const getUsers = async (req: Request, res: Response) => {
+// ============================================================
+// LIST (pagination + filtres)
+// ============================================================
+export const getUsers = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { day, week, month, year, ...filters } = req.query;
+    const filters = parseFilters(req);
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 50;
 
-    let query: any = { ...filters };
-
-    if (day || week || month || year) {
-      const now = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-
-      if (day) {
-        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      } else if (week) {
-        const dayOfWeek = now.getDay();
-        start = new Date(now);
-        start.setDate(now.getDate() - dayOfWeek);
-        start.setHours(0, 0, 0, 0);
-
-        end = new Date(start);
-        end.setDate(start.getDate() + 7);
-      } else if (month) {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      } else if (year) {
-        start = new Date(now.getFullYear(), 0, 1);
-        end = new Date(now.getFullYear() + 1, 0, 1);
-      }
-
-      if (start && end) {
-        query.createdAt = { $gte: start, $lt: end };
-      }
-    }
-
-    const users = await User.find(query);
-
-    const usersWithProfiles = await Promise.all(
-      users.map(async (user) => {
-        let profile = null;
-
-        if (user.role === "vendeur") {
-          profile = await Vendeur.findOne({ _id: user._id });
-        } else if (user.role === "client") {
-          profile = await Client.findOne({ _id: user._id });
-        }
-
-        return {
-          _id: user._id,
-          email: user.email,
-          role: user.role,
-          username: user.username,
-          avatar: user.avatar,
-          isVerified: user.isVerified,
-          isActive: user.isActive,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-
-          // 🆕 Suivi d'activité
-          lastLoginAt: user.lastLoginAt ?? null,
-          loginCount: user.loginCount ?? 0,
-          actionsCount: user.actionsCount ?? 0,
-
-          profile,
-        };
-      })
-    );
-
-    res.json(usersWithProfiles);
+    const result = await userService.getUsers({ ...filters, page, limit });
+    return res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur lors de la récupération des users" });
+    console.error("getUsers error:", err);
+    return res.status(500).json({ error: "Erreur lors de la récupération des users" });
   }
 };
 
-export const getUserById = async (req: Request, res: Response) => {
+// ============================================================
+// STATS
+// ============================================================
+export const getUsersStats = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: "User introuvable." });
-    }
-
-    let roleInfo: any = null;
-    switch (user.role) {
-      case "vendeur":
-        roleInfo = await Vendeur.findOne({ _id: user._id });
-        break;
-      case "client":
-        roleInfo = await Client.findOne({ _id: user._id });
-        break;
-      default:
-        roleInfo = null;
-    }
-
-    res.status(200).json({
-      _id: user._id,
-      email: user.email,
-      role: user.role,
-      username: user.username,
-      avatar: user.avatar,
-      isVerified: user.isVerified,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-
-      // 🆕 Suivi d'activité
-      lastLoginAt: user.lastLoginAt ?? null,
-      loginCount: user.loginCount ?? 0,
-      actionsCount: user.actionsCount ?? 0,
-
-      profile: roleInfo,
-    });
+    const filters = parseFilters(req);
+    const stats = await userService.getUserStats(filters);
+    return res.json(stats);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Erreur serveur" });
+    console.error("getUsersStats error:", err);
+    return res.status(500).json({ error: "Erreur lors du calcul des statistiques" });
   }
 };
 
-export const updateUser = async (req: Request, res: Response) => {
+// ============================================================
+// GET ONE
+// ============================================================
+export const getUserById = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const userId = req.params.id;
-    const { username, avatar, profileData } = req.body;
+    const user = await userService.getUserById(req.params.id);
+    return res.status(200).json(user);
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ message: err.message });
+    console.error(err);
+    return res.status(500).json({ message: "Erreur serveur" });
+  }
+};
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "Utilisateur introuvable." });
-    }
-
-    if (username !== undefined) user.username = username;
-    if (avatar !== undefined) user.avatar = avatar;
-
-    await user.save();
-
-    let profile = null;
-
-    if (user.role === "vendeur" && profileData) {
-      profile = await Vendeur.findByIdAndUpdate(
-        user._id,
-        { $set: profileData },
-        { new: true }
-      );
-    }
-
-    if (user.role === "client" && profileData) {
-      profile = await Client.findByIdAndUpdate(
-        user._id,
-        { $set: profileData },
-        { new: true }
-      );
-    }
-
-    res.status(200).json({
+// ============================================================
+// UPDATE
+// ============================================================
+export const updateUser = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const result = await userService.updateUser(req.params.id, req.body);
+    return res.status(200).json({
       message: "Informations mises à jour avec succès.",
-      user: {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-        avatar: user.avatar,
-        role: user.role,
-      },
-      profile,
+      ...result,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ message: err.message });
     console.error("Erreur update user :", err);
-    res.status(500).json({ message: "Erreur serveur" });
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 };
 
-export const deleteUser = async (req: Request, res: Response) => {
+// ============================================================
+// DELETE
+// ============================================================
+export const deleteUser = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ error: "User non trouvé" });
-    res.json({ message: "User supprimé avec succès" });
-  } catch (err) {
-    res.status(500).json({ error: "Erreur lors de la suppression du user" });
+    await userService.deleteUser(req.params.id);
+    return res.json({ message: "User supprimé avec succès" });
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    return res.status(500).json({ error: "Erreur lors de la suppression du user" });
   }
 };
 
-export const getProfile = async (req: Request, res: Response) => {
+// ============================================================
+// GET PROFILE (impersonation-safe)
+// ============================================================
+export const getProfile = async (req: Request, res: Response): Promise<Response> => {
   try {
-    // ✅ Utilise req.user (impersonation incluse) — plus de (req as any).user.id
     if (!req.user) {
       return res.status(401).json({ message: "Veuillez vous connecter." });
     }
 
-    const user = await User.findById(req.user.userId).select("-password");
-
-    if (!user) {
-      return res.status(404).json({ message: "Utilisateur non trouvé" });
-    }
-
-    let profile = null;
-    if (user.role === "vendeur") {
-      profile = await Vendeur.findOne({ _id: user._id });
-    } else if (user.role === "client") {
-      profile = await Client.findOne({ _id: user._id });
-    }
-
-    res.status(200).json({
-      _id: user._id,
-      email: user.email,
-      role: user.role,
-      username: user.username,
-      avatar: user.avatar,
-      isVerified: user.isVerified,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-
-      // 🆕 Suivi d'activité
-      lastLoginAt: user.lastLoginAt ?? null,
-      loginCount: user.loginCount ?? 0,
-      actionsCount: user.actionsCount ?? 0,
-
-      profile,
-    });
-  } catch (err) {
+    const result = await userService.getProfile(req.user.userId);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ message: err.message });
     console.error(err);
-    res.status(500).json({ message: "Erreur serveur", error: err });
+    return res.status(500).json({ message: "Erreur serveur", error: err });
   }
 };
 
-// ============================
+// ============================================================
 // VERIFY USER
-// ============================
-export const verifyUser = async (req: Request, res: Response) => {
+// ============================================================
+export const verifyUser = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const userId = req.params.id;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "Utilisateur introuvable." });
-    }
-
-    if (user.isVerified) {
-      return res.status(400).json({
-        message: "Cet utilisateur est déjà vérifié.",
-      });
-    }
-
-    user.isVerified = true;
-    await user.save();
-
-    let profile = null;
-    if (user.role === "vendeur") {
-      profile = await Vendeur.findOne({ _id: user._id });
-    } else if (user.role === "client") {
-      profile = await Client.findOne({ _id: user._id });
-    }
-
-    res.status(200).json({
+    const user = await userService.verifyUser(req.params.id);
+    return res.status(200).json({
       message: "Utilisateur vérifié avec succès.",
-      user: {
-        _id: user._id,
-        email: user.email,
-        role: user.role,
-        username: user.username,
-        avatar: user.avatar,
-        isVerified: user.isVerified,
-        isActive: user.isActive,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-
-        // 🆕 Suivi d'activité
-        lastLoginAt: user.lastLoginAt ?? null,
-        loginCount: user.loginCount ?? 0,
-        actionsCount: user.actionsCount ?? 0,
-
-        profile,
-      },
+      user,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ message: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ message: err.message });
     console.error("Erreur lors de la vérification de l'utilisateur :", err);
-    res.status(500).json({
+    return res.status(500).json({
       message: "Erreur serveur lors de la vérification de l'utilisateur",
       error: err,
     });
   }
 };
 
-// ============================
-// TOGGLE USER STATUS (Activer/Désactiver)
-// ============================
-export const toggleUserStatus = async (req: Request, res: Response) => {
+// ============================================================
+// TOGGLE USER STATUS
+// ============================================================
+export const toggleUserStatus = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const userId = req.params.id;
     const { isActive } = req.body;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "Utilisateur introuvable." });
-    }
-
-    // Empêcher la désactivation de son propre compte (impersonation-safe)
     const currentUserId = req.user?.userId;
-    if (currentUserId && userId === currentUserId) {
-      return res.status(400).json({
-        message: "Vous ne pouvez pas désactiver votre propre compte.",
-      });
-    }
 
-    user.isActive = isActive !== undefined ? isActive : !user.isActive;
-    await user.save();
+    const result = await userService.toggleUserStatus(
+      req.params.id,
+      isActive,
+      currentUserId
+    );
 
-    let profile = null;
-    if (user.role === "vendeur") {
-      profile = await Vendeur.findOne({ _id: user._id });
-    } else if (user.role === "client") {
-      profile = await Client.findOne({ _id: user._id });
-    }
-
-    const statusText = user.isActive ? "activé" : "désactivé";
-
-    res.status(200).json({
-      message: `Compte utilisateur ${statusText} avec succès.`,
-      user: {
-        _id: user._id,
-        email: user.email,
-        role: user.role,
-        username: user.username,
-        avatar: user.avatar,
-        isVerified: user.isVerified,
-        isActive: user.isActive, // 🆕 fix : `s` → `isActive`
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-
-        // 🆕 Suivi d'activité
-        lastLoginAt: user.lastLoginAt ?? null,
-        loginCount: user.loginCount ?? 0,
-        actionsCount: user.actionsCount ?? 0,
-
-        profile,
-      },
+    return res.status(200).json({
+      message: `Compte utilisateur ${result.statusText} avec succès.`,
+      user: result.user,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.statusCode === 404) return res.status(404).json({ message: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ message: err.message });
     console.error("Erreur lors de l'activation/désactivation du compte :", err);
-    res.status(500).json({
+    return res.status(500).json({
       message: "Erreur serveur lors de l'activation/désactivation du compte",
       error: err,
     });

@@ -1,22 +1,34 @@
-import express from 'express';
-import { 
-  deleteUser, 
-  getUserById, 
-  getUsers, 
+// routes/user.routes.ts
+import express from "express";
+import {
+  deleteUser,
+  getUserById,
+  getUsers,
+  getUsersStats,
   verifyUser,
-  toggleUserStatus 
-} from '../controllers/userController';
-import { updateUser } from '../controllers/authController';
+  toggleUserStatus,
+} from "../controllers/userController";
+import { updateUser } from "../controllers/authController";
+import { authMiddleware } from "../middlewares/authMiddleware";
+import { adminOnly } from "../middlewares/adminOnly";
+import { auditLogger } from "../middlewares/auditLogger";
 
 const router = express.Router();
 
-// Routes pour les utilisateurs
-router.get('/', getUsers);
-router.get('/:id', getUserById);
+// 🔐 Toutes les routes sont admin-only
+router.use(authMiddleware);
+router.use(adminOnly);
 
-router.put('/:id', updateUser);
-router.patch('/:id/verify', verifyUser); // Route pour vérifier un utilisateur
-router.patch('/:id/toggle-status', toggleUserStatus); // Route pour activer/désactiver un compte
-router.delete('/:id', deleteUser);
+// Routes spécifiques AVANT /:id
+router.get("/stats", getUsersStats);
+
+// CRUD
+router.get("/", getUsers);
+router.get("/:id", getUserById);
+
+router.put("/:id", auditLogger, updateUser);
+router.patch("/:id/verify", auditLogger, verifyUser);
+router.patch("/:id/toggle-status", auditLogger, toggleUserStatus);
+router.delete("/:id", auditLogger, deleteUser);
 
 export default router;

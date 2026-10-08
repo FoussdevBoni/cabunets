@@ -2,6 +2,7 @@
 import User from "../models/User";
 import { Vendeur } from "../models/Vendeur";
 import { Order } from "../models/Order";
+import { computeIsOnline } from "../utils/isVendeurOnline";
 
 export const vendeurService = {
     // ============================
@@ -38,7 +39,8 @@ export const vendeurService = {
             networks: v.networks,
             openingTime: v.openingTime,
             closingTime: v.closingTime,
-            isOnline: v.isOnline,
+            // ✅ Recalculé à la volée, jamais lu depuis la base
+            isOnline: computeIsOnline(v.openingTime, v.closingTime),
         }));
     },
 
@@ -60,7 +62,6 @@ export const vendeurService = {
             networks,
             openingTime,
             closingTime,
-            isOnline,
         } = profile || {};
 
         // ============================
@@ -104,7 +105,9 @@ export const vendeurService = {
         ).length;
 
         const successRate =
-            totalSales > 0 ? Math.round((totalCompletedSales / totalSales) * 100) : 0;
+            totalSales > 0
+                ? Math.round((totalCompletedSales / totalSales) * 100)
+                : 0;
 
         const isTopVendeur = totalCompletedSales >= 50 || totalRevenue >= 5000;
 
@@ -146,7 +149,8 @@ export const vendeurService = {
             networks,
             openingTime,
             closingTime,
-            isOnline,
+            // ✅ Recalculé à la volée, jamais lu depuis la base
+            isOnline: computeIsOnline(openingTime, closingTime),
             stats: {
                 totalSales,
                 totalCompletedSales,
@@ -188,7 +192,6 @@ export const vendeurService = {
                 networks: data.profileData.networks,
                 openingTime: data.profileData.openingTime,
                 closingTime: data.profileData.closingTime,
-                // isOnline sera mis à jour automatiquement par le middleware pre-save
             };
 
             vendeurProfile = await Vendeur.findByIdAndUpdate(
