@@ -7,7 +7,6 @@ import {
 } from "../controllers/orderController";
 import { authMiddleware } from "../middlewares/authMiddleware";
 import { auditLogger } from "../middlewares/auditLogger";
-import { adminOnly } from "../middlewares/adminOnly";
 import { getDeposit } from "../controllers/cabupayPaymentController";
 
 const router = express.Router();
@@ -16,7 +15,7 @@ const router = express.Router();
 router.post("/", createOrder);
 
 // 🔐 Routes spécifiques AVANT /:id
-router.get("/stats", authMiddleware, adminOnly, getOrdersStats); // 🆕
+router.get("/stats", authMiddleware, getOrdersStats); // 🆕
 router.get("/sync-status/:orderId", syncOrderStatus);
 router.get("/whatsapp/send-pending", sendPendingWhatsAppMessages);
 

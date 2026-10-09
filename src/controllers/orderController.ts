@@ -24,6 +24,22 @@ function parseFilters(req: Request): OrderFilters {
   };
 }
 
+/**
+ * 🔐 Restreint les filtres selon le rôle de l'appelant.
+ * - admin   : aucun filtre imposé (voit tout)
+ * - vendeur : forcé sur son propre vendeurId
+ * - client  : forcé sur son propre clientId
+ */
+function applyRoleScope(req: Request, filters: OrderFilters): OrderFilters {
+  if (req.user?.role === "vendeur") {
+    return { ...filters, vendeurId: req.user.userId, clientId: undefined };
+  }
+  if (req.user?.role === "client") {
+    return { ...filters, clientId: req.user.userId, vendeurId: undefined };
+  }
+  return filters;
+}
+
 // ================= CREATE =================
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -36,7 +52,6 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
   } catch (err: any) {
     console.error("❌ Erreur createOrder:", err.message || err);
 
-    // Erreur applicative (400) avec order + payment
     if (err.statusCode && err.order) {
       return res.status(err.statusCode).json({
         success: false,
@@ -60,7 +75,7 @@ export const createOrder = async (req: Request, res: Response): Promise<Response
 // ================= LIST (pagination + filtres) =================
 export const getOrders = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const filters = parseFilters(req);
+    const filters = applyRoleScope(req, parseFilters(req));
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 50;
 
@@ -75,7 +90,7 @@ export const getOrders = async (req: Request, res: Response): Promise<Response> 
 // ================= STATS =================
 export const getOrdersStats = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const filters = parseFilters(req);
+    const filters = applyRoleScope(req, parseFilters(req));
     const stats = await orderService.getOrdersStats(filters);
     return res.json(stats);
   } catch (err: any) {
