@@ -12,7 +12,13 @@ export interface IUser extends Document {
   isPremium: boolean;
   isActive: boolean;
 
-  // 🆕 Suivi d'activité
+  // ─────────────────────────────────────────────
+  // 🆕 Cabuaffili : dimension parrain
+  // ─────────────────────────────────────────────
+  isAffiliate: boolean;
+  codeParrainage?: string;
+
+  // Suivi d'activité
   lastLoginAt?: Date;
   loginCount: number;
   actionsCount: number;
@@ -50,7 +56,33 @@ const userSchema = new Schema<IUser>(
     isPremium: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
 
-    // 🆕 Suivi d'activité
+    // ─────────────────────────────────────────────
+    // 🆕 Cabuaffili
+    // ─────────────────────────────────────────────
+    isAffiliate: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    codeParrainage: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      sparse: true,   // autorise plusieurs users sans code
+      unique: true,   // un code = un seul user
+      index: true,
+      validate: {
+        validator: function (v: string) {
+          if (!v) return true;
+          return /^[A-Z0-9-]{4,20}$/.test(v);
+        },
+        message: (props) =>
+          `${props.value} n'est pas un code de parrainage valide (4 à 20 caractères)`,
+      },
+    },
+
+    // Suivi d'activité
     lastLoginAt: { type: Date, index: true },
     loginCount: { type: Number, default: 0, min: 0 },
     actionsCount: { type: Number, default: 0, min: 0 },
@@ -67,9 +99,12 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// 🆕 Index pour requêter les top users actifs
+// Index pour requêter les top users actifs
 userSchema.index({ role: 1, actionsCount: -1 });
 userSchema.index({ role: 1, loginCount: -1 });
+
+// 🆕 Index Cabuaffili
+userSchema.index({ isAffiliate: 1, isActive: 1 });
 
 // Hash automatique du mot de passe
 userSchema.pre<IUser>("save", async function (next) {

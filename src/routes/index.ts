@@ -1,51 +1,48 @@
-import { Router } from 'express';
-import userRoutes from './userRoutes'
-import authRoute from './authRoutes'
-import offreRoutes from './offreRoutes'
-import vendeurRoutes from './vendeurRoutes'
-import orderRoutes from './orderRoutes'
-import uploadRoutes from './uploadRoutes'
-import paymentRoutes from './paymentRoutes'
-import retraitRoutes from './retraitRoutes'
-import reclamationRoutes from './reclamationRoutes'
-import walletRoutes from './walletRoutes'
-import settingsRoutes from './settingsRoutes'
-import notificationRoutes from './notificationRoutes'
-import adminRoutes from "./adminRoutes";
-import statsRoutes from "./statsRoutes";
+// routes/index.ts
+import { Router } from "express";
 
+import userRoutes from "./metier/userRoutes";
+import authRoute from "./metier/authRoutes";
+import offreRoutes from "./metier/offreRoutes";
+import vendeurRoutes from "./metier/vendeurRoutes";
+import orderRoutes from "./metier/orderRoutes";
+import paymentRoutes from "./metier/paymentRoutes";
+import retraitRoutes from "./metier/retraitRoutes";
+import reclamationRoutes from "./metier/reclamationRoutes";
+import walletRoutes from "./metier/walletRoutes";
+import settingsRoutes from "./metier/settingsRoutes";
+import adminRoutes from "./metier/adminRoutes";
+import statsRoutes from "./metier/statsRoutes";
+import affiliateRoutes from "./metier/affiliateRoutes";
+import referralRoutes from "./metier/referralRoutes";
+import commissionRoutes from "./metier/commissionRoutes";
+import rewardWithdrawalRoutes from "./metier/rewardWithdrawalRoutes"; // 🆕
 
+import uploadRoutes from "./utilitaires/uploadRoutes";
+import notificationRoutes from "./utilitaires/notificationRoutes";
 
-// Création de l'instance du routeur
 const router = Router();
 
-// Définition des chemins d'API et attribution des routes
-
-router.use('/auth', authRoute);
-router.use('/users', userRoutes);
-router.use('/vendeurs', vendeurRoutes);
-router.use('/offres', offreRoutes);
-router.use('/orders', orderRoutes);
-router.use('/payments', paymentRoutes);
-router.use('/upload', uploadRoutes);
-router.use('/retraits', retraitRoutes);
-router.use('/reclamations', reclamationRoutes);
-router.use('/settings', settingsRoutes);
-router.use('/wallet', walletRoutes);
-router.use('/notifications', notificationRoutes);
+// Métier
+router.use("/auth", authRoute);
+router.use("/users", userRoutes);
+router.use("/vendeurs", vendeurRoutes);
+router.use("/offres", offreRoutes);
+router.use("/orders", orderRoutes);
+router.use("/payments", paymentRoutes);
+router.use("/retraits", retraitRoutes);
+router.use("/reclamations", reclamationRoutes);
+router.use("/settings", settingsRoutes);
+router.use("/wallet", walletRoutes);
 router.use("/admin", adminRoutes);
 router.use("/stats", statsRoutes);
+router.use("/affiliate", affiliateRoutes);
+router.use("/referral", referralRoutes);
+router.use("/commission", commissionRoutes);
+router.use("/reward-withdrawal", rewardWithdrawalRoutes); // 🆕
 
-
-
-
-
-
-
-
-
-  
-
-
+// Utilitaires
+router.use("/upload", uploadRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;

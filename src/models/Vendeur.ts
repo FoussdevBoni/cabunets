@@ -7,6 +7,9 @@ export interface IVendeur extends Document {
   whatsappNumber: string;
   advantage: string;
 
+  // Code d'affiliation (généré côté serveur, PAS dans le schéma)
+  codeAffiliation?: string;
+
   networks: {
     Airtel: boolean;
     Vodacom: boolean;
@@ -20,7 +23,7 @@ export interface IVendeur extends Document {
 
   // Horaires d'ouverture
   openingTime?: string; // Format "HH:mm"
-  closingTime?: string; // Format "HH:mm"
+  closingTime?: string;  // Format "HH:mm"
 
   createdAt: Date;
   updatedAt: Date;
@@ -44,6 +47,30 @@ const VendeurSchema = new Schema<IVendeur>(
       type: String,
       trim: true,
       default: "",
+    },
+
+    // ─────────────────────────────────────────────
+    // Code d'affiliation
+    // - Pas de "default" : généré côté serveur
+    // - Unique : un code = un seul vendeur
+    // - Indexé : recherche rapide
+    // ─────────────────────────────────────────────
+    codeAffiliation: {
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true, // autorise plusieurs documents sans code
+      uppercase: true,
+      trim: true,
+      index: true,
+      validate: {
+        validator: function (v: string) {
+          if (!v) return true; // optionnel
+          return /^[A-Z0-9-]{4,20}$/.test(v);
+        },
+        message: (props) =>
+          `${props.value} n'est pas un code d'affiliation valide (4 à 20 caractères alphanumériques ou tirets)`,
+      },
     },
 
     networks: {
@@ -100,5 +127,8 @@ const VendeurSchema = new Schema<IVendeur>(
 
 // Index pour filtrer/trier par horaires
 VendeurSchema.index({ openingTime: 1, closingTime: 1 });
+
+// Index unique sur le code (sécurité supplémentaire)
+VendeurSchema.index({ codeAffiliation: 1 }, { unique: true, sparse: true });
 
 export const Vendeur = mongoose.model<IVendeur>("Vendeur", VendeurSchema);

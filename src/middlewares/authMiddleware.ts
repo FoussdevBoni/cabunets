@@ -1,7 +1,7 @@
 // middlewares/authMiddleware.ts
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { profileService } from "../services/profileService";
+import { profileService } from "../services/metier/profileService";
 import { Admin } from "../models/Admin";
 import User from "../models/User";
 
@@ -16,23 +16,6 @@ interface JwtPayload {
   exp: number;
 }
 
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: {
-      userId: string;
-      role: "admin" | "client" | "vendeur";
-      username: string;
-      avatar?: string;
-      email?: string;
-      profile: any;
-      impersonatedBy?: {
-        adminId: string;
-        adminUsername: string;
-        adminEmail?: string;
-      };
-    };
-  }
-}
 
 export const authMiddleware = async (
   req: Request,
@@ -60,10 +43,10 @@ export const authMiddleware = async (
 
     let impersonatedBy:
       | {
-          adminId: string;
-          adminUsername: string;
-          adminEmail?: string;
-        }
+        adminId: string;
+        adminUsername: string;
+        adminEmail?: string;
+      }
       | undefined = undefined;
 
     // ---------- VENDEUR ----------
@@ -178,10 +161,10 @@ export const authMiddleware = async (
         const admin = await profileService.getProfileByRole("admin", decoded.id);
         profile = admin
           ? {
-              _id: admin._id,
-              userId: (admin as any).userId ?? admin._id,
-              ...(admin.toObject?.() ?? admin),
-            }
+            _id: admin._id,
+            userId: (admin as any).userId ?? admin._id,
+            ...(admin.toObject?.() ?? admin),
+          }
           : { _id: decoded.id, userId: decoded.id };
       }
     }
