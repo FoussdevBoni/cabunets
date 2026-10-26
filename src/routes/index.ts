@@ -36,10 +36,10 @@ router.use("/settings", settingsRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/admin", adminRoutes);
 router.use("/stats", statsRoutes);
-router.use("/affiliate", affiliateRoutes);
-router.use("/referral", referralRoutes);
-router.use("/commission", commissionRoutes);
-router.use("/reward-withdrawal", rewardWithdrawalRoutes); // 🆕
+router.use("/commissions", commissionRoutes);
+router.use("/affiliates", affiliateRoutes);
+router.use("/referrals", referralRoutes);
+router.use("/reward-withdrawals", rewardWithdrawalRoutes);
 
 // Utilitaires
 router.use("/upload", uploadRoutes);
