@@ -1,16 +1,32 @@
-import { useDispatch, useSelector } from "react-redux"
-import { setUser } from "../../reducer/userSlice"
+// hooks/auth/useToken.ts
+import { useState } from 'react';
+
+const TOKEN_KEY = 'token';
 
 export default function useToken() {
-  const dispatch = useDispatch()
-  const userData = useSelector((state: any) => state.user.userData)
+  // Initialisation immédiate, pas dans useEffect
+  const [token, setTokenState] = useState<any>(() => {
+    return localStorage.getItem(TOKEN_KEY);
+  });
 
-  const saveToken = (token: string) => {
-    dispatch(setUser({ ...(userData || {}), token }))
-  }
+  const saveToken = (token: any) => {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+    setTokenState(token);
+  };
 
-  const deleteToken = ()=>{
-        dispatch(setUser(null))
-  }
-  return { token: userData?.token, saveToken , deleteToken }
+  const clearToken = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setTokenState(null);
+  };
+
+  return {
+    token,
+    saveToken,
+    clearToken,
+    isAuthenticated: !!token,
+  };
 }

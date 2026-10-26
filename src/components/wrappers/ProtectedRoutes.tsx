@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { ReactNode } from 'react';
 import Loader from '../ui/Loader';
 import { useAuth } from '../../hooks/auth/useAuth';
-import {  User, Vendeur } from '../../utils/database';
+import { User } from '../../types/User';
 
 type ProtectedRouteProps = {
   children: ReactNode;
@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   if (loading) return <Loader />;
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
  
   

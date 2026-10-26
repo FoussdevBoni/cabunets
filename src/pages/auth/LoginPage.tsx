@@ -1,17 +1,19 @@
 import { useState } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, useLocation, Link } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react"
-import useToken from "../../hooks/auth/useToken"
+import { useAuth } from "../../hooks/auth/useAuth"
 import { authService } from "../../services/authService"
 
 export default function LoginPage() {
+  const location = useLocation();
+  const { error: sessionError } = useAuth();
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState(location.state?.authError ?? "")
   
-  const { saveToken } = useToken()
+  const { authenticate } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,14 +31,14 @@ export default function LoginPage() {
       const response = await authService.login(email, password)
 
       if (response.token) {
-        saveToken(response.token)
-        navigate(`/redirect?token=${response.token}`)
+        await authenticate(response.token)
+        navigate("/redirect")
       } else {
         setError("Token non reçu")
       }
     } catch (error: any) {
       console.error("Erreur de connexion:", error)
-      setError(error.message || "Email ou mot de passe incorrect")
+      setError(authService.getAuthError(error))
     } finally {
       setLoading(false)
     }
@@ -63,7 +65,7 @@ export default function LoginPage() {
                 Pas encore de compte?
               </p>
               <Link
-                to="/vendeur-register"
+                to="/auth/register"
                 className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition"
               >
                 <LogIn className="h-4 w-4" />
@@ -97,9 +99,9 @@ export default function LoginPage() {
             {/* Formulaire */}
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Message d'erreur */}
-              {error && (
+              {(error || sessionError) && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
+                  {error || authService.getAuthError(sessionError)}
                 </div>
               )}
 
@@ -177,7 +179,7 @@ export default function LoginPage() {
                 <p className="text-center text-gray-600 text-sm">
                   Pas encore de compte?{' '}
                   <Link
-                    to="/vendeur-register"
+                    to="/auth/register"
                     className="text-primary font-medium hover:text-primary/80 transition"
                   >
                     Créer un compte

@@ -1,39 +1,15 @@
-import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { authService } from "../../services/authService";
+import { Navigate } from "react-router-dom";
 import Loader from "../../components/ui/Loader";
-import { User } from "../../utils/database";
+import { useAuth } from "../../hooks/auth/useAuth";
+import { authService } from "../../services/authService";
 
 export default function Redirect() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        if (!token) {
-          navigate("/login");
-          return;
-        }
-
-        const currentUser : User | null = await authService.getUserProfile(token);
-        
-        if (currentUser) {
-          navigate(`/${currentUser.role}/overview`);
-        } else {
-          navigate("/login");
-        }
-      } catch (err) {
-        navigate("/login");
-
-       console.error(err)
-
-      }
-    };
-
-    fetchUser();
-  }, [token, navigate]);
-
-  return <Loader />;
+  const { user, loading, isAuthenticated, error } = useAuth();
+  if (loading) return <Loader />;
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/auth/login" replace state={{
+      authError: error ? authService.getAuthError(error) : undefined,
+    }} />;
+  }
+  return <Navigate to={user.role === "admin" ? "/admin/overview" : "/affiliate/overview"} replace />;
 }

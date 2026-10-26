@@ -1,95 +1,111 @@
-import axios from "axios";
-import { AuthResponse, CurrentUser, Profile, User, UserBase } from "../utils/database";
-import { API_URL } from "../utils/api";
+// src/services/authService.ts
 
+import api from "../utils/api";
+import {
+  AuthResponse,
+  CurrentUser,
+  Profile,
+  User,
+  UserBase,
+} from "../types/User";
 
 export type Role = User["role"];
 
-
-
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  username?: string;
+  avatar?: string;
+  role?: Role;
+  telephone?: string;
+  becomeAffiliate?: boolean;
+  referralCode?: string;
+  profileData?: Partial<Profile>;
+}
 
 export const authService = {
-  async register(
-    email: string,
-    password: string,
-    username: string,
-    avatar: string,
-    role: Role,
-    profileData?: Partial<Profile>
-  ): Promise<AuthResponse> {
+  async register(payload: RegisterPayload): Promise<AuthResponse> {
     try {
-      const { data } = await axios.post(`${API_URL}/auth/register`, {
-        email,
-        password,
-        role,
-        username,
-        avatar,
-        profileData,
+      const { data } = await api.post<AuthResponse>("/auth/register", {
+        email: payload.email,
+        password: payload.password,
+        role: payload.role ?? "client",
+        username: payload.username,
+        avatar: payload.avatar,
+        telephone: payload.telephone,
+        becomeAffiliate: payload.becomeAffiliate,
+        referralCode: payload.referralCode,
+        profileData: payload.profileData,
       });
       return data;
     } catch (error) {
-      console.error(error)
-      throw error
+      console.error(error);
+      throw error;
     }
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const { data } = await axios.post(`${API_URL}/auth/login`, { email, password });
-
+    const { data } = await api.post<AuthResponse>("/auth/login", {
+      email,
+      password,
+    });
     return data;
   },
 
-  async getUserProfile(token: string): Promise<CurrentUser> {
-    const { data } = await axios.get(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  async getUserProfile(): Promise<CurrentUser> {
+    const { data } = await api.get<CurrentUser>("/auth/me");
     return {
       ...data,
       profile: {
         ...data.profile,
-        id: data.profile?.id
-      }
-    }
+      },
+    };
   },
 
-
   getAuthError(error: any) {
-    return error?.response?.data?.message || "Une erreur s'est produite. Veillez réessayer"
+    return (
+      error?.response?.data?.message ||
+      (error?.response?.status ? "Impossible de charger votre session (HTTP " + error.response.status + ")." : error?.message) ||
+      "Une erreur s'est produite. Veuillez réessayer"
+    );
   },
 
   async logout() {
     // Côté backend, le logout JWT est stateless
-    // On peut juste supprimer le token côté frontend
     return true;
   },
 
-  async updateUser(token: string, userId: string,
-    userBaseData: Partial<UserBase>, userProfile: Profile) {
-
+  async updateUser(
+    userId: string,
+    userBaseData: Partial<UserBase>,
+    userProfile: Profile
+  ) {
     const updatedUser = {
       avatar: userBaseData.avatar,
       username: userBaseData.username,
-      profileData: userProfile
-    }
-    try {
-      return await axios.put(`${API_URL}/auth/${userId}`, updatedUser, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-    } catch (error) {
-      throw error
-    }
+      profileData: userProfile,
+    };
+    const { data } = await api.put(`/auth/${userId}`, updatedUser);
+    return data;
   },
 
-  // === Demande reset password OTP ===
   async requestPasswordReset(email: string): Promise<{ message: string }> {
-    const { data } = await axios.post(`${API_URL}/auth/request-reset-password`, { email });
+    const { data } = await api.post<{ message: string }>(
+      "/auth/request-reset-password",
+      { email }
+    );
     return data;
   },
 
-  // === Réinitialisation mot de passe avec OTP ===
-  async resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
-    const { data } = await axios.post(`${API_URL}/auth/reset-password`, { email, otp, newPassword });
+  async resetPasswordWithOtp(
+    email: string,
+    otp: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    const { data } = await api.post<{ message: string }>(
+      "/auth/reset-password",
+      { email, otp, newPassword }
+    );
     return data;
   },
-
 };
