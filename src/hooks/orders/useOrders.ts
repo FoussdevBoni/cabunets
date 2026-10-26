@@ -1,178 +1,126 @@
-// src/hooks/useOrders.ts
-import { Order } from '../../utils/database'
-import { dataService, QueryFilters } from '../../services/dataService'
-import { useData } from '../data/useData'
-import axios from 'axios'
-import { API_URL } from '../../utils/api'
-import { alertError } from '../../helpers/alertError'
+// src/hooks/orders/useOrders.ts
+import { useCallback, useEffect, useState } from "react";
+import {
+  orderService,
+  OrdersListFilters,
+  OrdersStats,
+} from "../../services/orderService";
+import { Order } from "../../utils/database";
+import useToken from "../auth/useToken";
 
+// ============================================================
+// TYPES
+// ============================================================
 
+interface UseOrdersOptions {
+  /** Filtres pour la liste (page, limit, status, search, dates…) */
+  filters?: OrdersListFilters;
 
-export interface PredictCorrespondentResponse {
-    success: boolean
-    data: {
-        correspondent: string
-        country: string
-    }
+  /**
+   * Filtres pour les stats. Si non fourni, on utilise `filters`.
+   * Utile pour ignorer certains filtres (ex : status) dans les compteurs.
+   */
+  statsFilters?: OrdersListFilters;
+
+  /** Charge aussi les stats (par défaut true) */
+  withStats?: boolean;
 }
 
-export interface InitiatePaymentPayload {
-    appId: string
-    clientReference: string
-    amount: string
-    currency: string
-    phone: string
-    correspondent: string
-    country: string
-    callbackUrl: string
-    description?: string
-}
+// ============================================================
+// HOOK
+// ============================================================
 
-export interface InitiatePaymentResponse {
-    success: boolean
-    message: string
-    data: {
-        depositId: string
-        status: string
-        pawaResponse?: any
-    }
-}
+export default function useOrders({
+  filters = {},
+  statsFilters,
+  withStats = true,
+}: UseOrdersOptions = {}) {
+  const { token } = useToken();
 
-export const baseService = dataService<Order>('orders')
+  const [data, setData] = useState<(Order & { id: string })[]>([]);
+  const [stats, setStats] = useState<OrdersStats | null>(null);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 1,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
 
-export const ordersService = {
-    ...baseService,
+  // Clés stables pour éviter les boucles infinies
+  const filtersKey = JSON.stringify(filters);
+  const statsFiltersKey = JSON.stringify(statsFilters ?? null);
 
-    /**
-     * 1. Détecter l'opérateur (Correspondent) à partir du numéro de téléphone
-     */
-    predictCorrespondent: async (phoneNumber: string): Promise<PredictCorrespondentResponse> => {
-        try {
-            const response = await axios.post<PredictCorrespondentResponse>(
-                `${API_URL}/payments/predict-correspondent`,
-                { phoneNumber }
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur predictCorrespondent:', error?.response?.data || error.message)
-            throw new Error(error?.response?.data?.error || 'Impossible de détecter l\'opérateur')
-        }
-    },
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const requests: Promise<any>[] = [
+        orderService.getAllPaginated(filters, token),
+      ];
 
-    /**
-     * 2. Initier un paiement mobile money
-     */
-    initiatePayment: async (payload: InitiatePaymentPayload): Promise<InitiatePaymentResponse> => {
-        try {
-            const response = await axios.post<InitiatePaymentResponse>(
-                `${API_URL}/payments/initiate-payment`,
-                payload
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur initiatePayment:', error?.response?.data || error.message)
-            throw new Error(error?.response?.data?.error || 'Erreur lors de l\'initiation du paiement')
-        }
-    },
-
-    /**
-     * 3. Vérifier le statut d'un paiement (par référence ou depositId)
-     */
-    getPaymentStatus: async (referenceOrId: string): Promise<any> => {
-        try {
-            const response = await axios.get(
-                `${API_URL}/payments/payment-status/${referenceOrId}`
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur getPaymentStatus:', error?.response?.data || error.message)
-            throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
-        }
-    },
-
-    syncOrderStatus: async (orderId: string): Promise<any> => {
-        try {
-            const response = await axios.get(
-                `${API_URL}/orders/sync-status/${orderId}`
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur getPaymentStatus:', error?.response?.data || error.message)
-            throw new Error(error?.response?.data?.error || 'Échec de la récupération du statut')
-        }
-    },
-    traitOrder: async (token: string, orderId: string): Promise<any> => {
-        try {
-            const response = await axios.get(
-                `${API_URL}/orders/trait-order/${orderId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
-            throw error
-        }
-    },
-
-    deliverOrder: async (token: string, orderId: string): Promise<any> => {
-
-        if (!token || !orderId) {
-            alertError("Une erreur s'est produite. Veillez vous reconnecter")
-            return
-        }
-        try {
-            const response = await axios.get(
-                `${API_URL}/orders/deliver-order/${orderId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
-            throw error
-        }
-    },
-    getDeposit: async (token: string, depositId: string): Promise<any> => {
-        try {
-            const response = await axios.get(
-                `${API_URL}/payments/deposit/${depositId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            )
-            return response.data
-        } catch (error: any) {
-            console.error('[ordersService] Erreur traitOrder:', error?.response?.data || error.message)
-            throw error
-        }
-    },
-    // Dans ordersService
-    sendPendingWhatsApp: async (token: string) => {
-      try {
-          const response = await axios.get(`${API_URL}/orders/whatsapp/send-pending`, {
-            headers: { Authorization: `Bearer ${token}` }
-        })
-        return response.data
-      } catch (error: any) {
-        console.error(`Error` , error.response)
-        throw error
+      if (withStats) {
+        // utilise statsFilters s'il est fourni, sinon filters
+        const sf = statsFilters ?? filters;
+        requests.push(orderService.getStats(sf, token));
       }
+
+      const [list, statsRes] = await Promise.all(requests);
+
+      setData(list.data);
+      setPagination({
+        total: list.total,
+        page: list.page,
+        limit: list.limit,
+        totalPages: list.totalPages,
+      });
+      if (withStats && statsRes) setStats(statsRes);
+    } catch (err) {
+      console.error("[useOrders] refresh error:", err);
+      setError(err);
+    } finally {
+      setLoading(false);
     }
-}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, filtersKey, statsFiltersKey, withStats]);
 
-interface Props {
-    filters?: QueryFilters
-}
+  const deleteItem = async (id: string | number) => {
+    try {
+      await orderService.delete(id, token);
+      refresh();
+    } catch (err) {
+      setError(err);
+    }
+  };
 
-export default function useOrders({ filters }: Props) {
-    return useData<Order>(ordersService, filters)
+  const updateItem = async (item: Partial<Order> & { id?: any; _id?: any }) => {
+    const id = item.id || item._id;
+    if (!id) {
+      console.error("[useOrders] updateItem: ID manquant");
+      return;
+    }
+    try {
+      await orderService.update(id, item, token);
+      refresh();
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return {
+    data,
+    stats,
+    pagination,
+    loading,
+    error,
+    length: data.length,
+    refresh,
+    deleteItem,
+    updateItem,
+  };
 }

@@ -29,7 +29,6 @@ const menuItems = [
   { path: "clients", label: "Clients", icon: <Users className="h-5 w-5" /> },
   { path: "reclamations", label: "Réclamations", icon: <MessageCircle className="h-5 w-5" /> },
   { path: "notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
-
   { path: "retraits", label: "Retraits", icon: <Outdent className="h-5 w-5" /> },
   { path: "wallets", label: "Portefeuilles", icon: <Wallet className="h-5 w-5" /> },
   { path: "settings", label: "Paramètres", icon: <Settings className="h-5 w-5" /> },
@@ -48,12 +47,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const currentPath = location.pathname.replace('/admin/', '')
 
   const handleLogout = () => {
-    // Logique de déconnexion
     navigate("/")
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Header pour mobile */}
       <header className="sticky top-0 z-50 bg-white border-b lg:hidden">
         <div className="px-4 py-3 flex items-center justify-between">
@@ -86,7 +84,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           />
           <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-xl">
             <div className="h-full flex flex-col">
-              {/* Logo */}
               <div className="p-6 border-b">
                 <div className="flex items-center gap-3">
                   <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
@@ -94,17 +91,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
               </div>
 
-              {/* Menu */}
-              <nav className="flex-1 p-4">
+              <nav className="flex-1 p-4 overflow-y-auto">
                 <div className="space-y-1">
                   {menuItems.map((item) => (
                     <button
                       key={item.path}
                       onClick={() => handleNavigate(item.path)}
-                      className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${currentPath === item.path
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${
+                        currentPath === item.path
                           ? "bg-primary text-white"
                           : "text-gray-700 hover:bg-gray-100"
-                        }`}
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         {item.icon}
@@ -118,7 +115,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </div>
               </nav>
 
-              {/* Footer */}
               <div className="p-4 border-t">
                 <button
                   onClick={handleLogout}
@@ -136,7 +132,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <div className="lg:flex">
         {/* Sidebar desktop */}
         <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 lg:border-r lg:bg-white">
-          {/* Logo */}
           <div className="p-6 border-b">
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
@@ -144,17 +139,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </div>
 
-          {/* Menu */}
           <nav className="flex-1 p-4 overflow-y-auto">
             <div className="space-y-1">
               {menuItems.map((item) => (
                 <button
                   key={item.path}
                   onClick={() => handleNavigate(item.path)}
-                  className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${currentPath === item.path
+                  className={`flex items-center justify-between w-full px-4 py-3 rounded-lg transition ${
+                    currentPath === item.path
                       ? "bg-primary text-white"
                       : "text-gray-700 hover:bg-gray-100"
-                    }`}
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     {item.icon}
@@ -168,7 +163,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </nav>
 
-          {/* Footer */}
           <div className="p-4 border-t">
             <button
               onClick={handleLogout}
@@ -181,8 +175,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </aside>
 
         {/* Contenu principal */}
-        <main className="lg:pl-64 flex-1">
-          {/* Header desktop */}
+        <main className="lg:pl-64 flex-1 min-w-0">
           <header className="hidden lg:block bg-white border-b">
             <div className="px-8 py-4">
               <h1 className="text-xl font-bold text-gray-900">
@@ -191,8 +184,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </header>
 
-          {/* Contenu */}
-          <div className="p-4 lg:p-8">
+          <div className="p-4 lg:p-8 overflow-x-hidden">
             {children}
           </div>
         </main>

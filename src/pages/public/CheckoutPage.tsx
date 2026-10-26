@@ -10,10 +10,10 @@ import {
 import { useOffre } from "../../hooks/offres/useOffre"
 import { useVendeur } from "../../hooks/vendeurs/useVendeur"
 import { Order } from "../../utils/database"
-import { ordersService } from "../../hooks/orders/useOrders"
 import { alertError, alertSuccess } from "../../helpers/alertError"
 import { formatToRDCPhone } from "../../utils/formatRDCPhone"
 import { useAuth } from "../../hooks/auth/useAuth"
+import { orderService } from "../../services/orderService"
 
 
 
@@ -117,7 +117,7 @@ export default function CheckoutPage() {
                 status: "PENDING"
             }
 
-            const data: any = await ordersService.create(newOrder as Order)
+            const data: any = await orderService.create(newOrder as Order)
 
             if (data.success) {
                 alertSuccess("Commande initiée avec succès !")

@@ -1,5 +1,7 @@
+import { captureReferral } from "./utils/referral";
+captureReferral();
 import { Route, Routes, Navigate } from 'react-router-dom';
-import AdminNav from './navigation/AdminNav';
+import AdminNav from './navigation/admin/AdminNav';
 import ProtectedRoute from './components/wrappers/ProtectedRoutes';
 import VendeurNav from './navigation/VendeurNav';
 import LandingPage from './pages/public/LandingPage';

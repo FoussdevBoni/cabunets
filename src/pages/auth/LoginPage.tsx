@@ -63,7 +63,7 @@ export default function LoginPage() {
                 Pas encore de compte?
               </p>
               <Link
-                to="/vendeur-register"
+                to="/register"
                 className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-medium hover:bg-primary/90 transition"
               >
                 <LogIn className="h-4 w-4" />
@@ -177,7 +177,7 @@ export default function LoginPage() {
                 <p className="text-center text-gray-600 text-sm">
                   Pas encore de compte?{' '}
                   <Link
-                    to="/vendeur-register"
+                    to="/register"
                     className="text-primary font-medium hover:text-primary/80 transition"
                   >
                     Créer un compte

@@ -24,11 +24,11 @@ export default function UserRow({
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
-      case 'admin':
+      case "admin":
         return <UserCog className="h-4 w-4" />;
-      case 'vendeur':
+      case "vendeur":
         return <Users className="h-4 w-4" />;
-      case 'client':
+      case "client":
         return <UserIcon className="h-4 w-4" />;
       default:
         return <UserIcon className="h-4 w-4" />;
@@ -37,25 +37,25 @@ export default function UserRow({
 
   const getRoleBadgeStyle = (role: UserRole) => {
     switch (role) {
-      case 'admin':
-        return 'bg-purple-100 text-purple-700';
-      case 'vendeur':
-        return 'bg-blue-100 text-blue-700';
-      case 'client':
-        return 'bg-green-100 text-green-700';
+      case "admin":
+        return "bg-purple-100 text-purple-700";
+      case "vendeur":
+        return "bg-blue-100 text-blue-700";
+      case "client":
+        return "bg-green-100 text-green-700";
       default:
-        return 'bg-gray-100 text-gray-700';
+        return "bg-gray-100 text-gray-700";
     }
   };
 
   const getRoleLabel = (role: UserRole) => {
     switch (role) {
-      case 'admin':
-        return 'Admin';
-      case 'vendeur':
-        return 'Vendeur';
-      case 'client':
-        return 'Client';
+      case "admin":
+        return "Admin";
+      case "vendeur":
+        return "Vendeur";
+      case "client":
+        return "Client";
       default:
         return role;
     }
@@ -64,24 +64,47 @@ export default function UserRow({
   const getProfileInfo = () => {
     const profile = user.profile as any;
     switch (user.role) {
-      case 'admin':
+      case "admin":
         return {
-          primary: profile?.nom || 'N/A',
-          secondary: profile?.tel || 'N/A'
+          primary: profile?.nom || "N/A",
+          secondary: profile?.tel || "N/A",
         };
-      case 'vendeur':
+      case "vendeur":
         return {
-          primary: profile?.whatsappNumber || 'N/A',
-          secondary: `${profile?.paymentAmount || 0} FCFA/transaction`
+          primary: profile?.whatsappNumber || "N/A",
+          secondary: `${profile?.paymentAmount || 0} FCFA/transaction`,
         };
-      case 'client':
+      case "client":
         return {
-          primary: profile?.whatsappNumber || 'N/A',
-          secondary: profile?.address || 'Adresse non renseignée'
+          primary: profile?.whatsappNumber || "N/A",
+          secondary: profile?.address || "Adresse non renseignée",
         };
       default:
-        return { primary: 'N/A', secondary: '' };
+        return { primary: "N/A", secondary: "" };
     }
+  };
+
+  // Formate la dernière connexion en langage simple
+  const formatLastLogin = (date?: string | Date | null) => {
+    if (!date) return "Jamais connecté";
+
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffH = Math.floor(diffMin / 60);
+    const diffD = Math.floor(diffH / 24);
+
+    if (diffMin < 1) return "À l'instant";
+    if (diffMin < 60) return `Il y a ${diffMin} min`;
+    if (diffH < 24) return `Il y a ${diffH}h`;
+    if (diffD < 7) return `Il y a ${diffD}j`;
+
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   const profileInfo = getProfileInfo();
@@ -112,7 +135,9 @@ export default function UserRow({
             </div>
           )}
           <div>
-            <span className="font-medium text-gray-900 block">{user.username}</span>
+            <span className="font-medium text-gray-900 block">
+              {user.username}
+            </span>
             <span className="text-gray-500 text-xs">{user.email}</span>
           </div>
         </div>
@@ -120,7 +145,11 @@ export default function UserRow({
 
       {/* Rôle */}
       <td className="py-3 px-4">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getRoleBadgeStyle(user.role)}`}>
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getRoleBadgeStyle(
+            user.role
+          )}`}
+        >
           {getRoleIcon(user.role)}
           {getRoleLabel(user.role)}
         </span>
@@ -129,37 +158,57 @@ export default function UserRow({
       {/* Contact */}
       <td className="py-3 px-4">
         <div>
-          <span className="text-gray-900 font-medium block">{profileInfo.primary}</span>
-          <span className="text-gray-500 text-xs">{profileInfo.secondary}</span>
+          <span className="text-gray-900 font-medium block">
+            {profileInfo.primary}
+          </span>
+          <span className="text-gray-500 text-xs">
+            {profileInfo.secondary}
+          </span>
         </div>
       </td>
 
       {/* Statut Vérifié */}
       <td className="py-3 px-4">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-          user.isVerified 
-            ? 'bg-green-100 text-green-700' 
-            : 'bg-yellow-100 text-yellow-700'
-        }`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${
-            user.isVerified ? 'bg-green-500' : 'bg-yellow-500'
-          }`} />
-          {user.isVerified ? 'Vérifié' : 'Non vérifié'}
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+            user.isVerified
+              ? "bg-green-100 text-green-700"
+              : "bg-yellow-100 text-yellow-700"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              user.isVerified ? "bg-green-500" : "bg-yellow-500"
+            }`}
+          />
+          {user.isVerified ? "Vérifié" : "Non vérifié"}
         </span>
+      </td>
+
+      {/* Dernière connexion */}
+      <td className="hidden lg:table-cell py-3 px-4">
+        <div>
+          <span className="text-gray-900 text-sm block">
+            {formatLastLogin(user.lastLoginAt)}
+          </span>
+          <span className="text-gray-500 text-xs">
+            {user.loginCount ?? 0} connexion{(user.loginCount ?? 0) > 1 ? "s" : ""}
+          </span>
+        </div>
       </td>
 
       {/* Date d'inscription */}
       <td className="hidden lg:table-cell py-3 px-4">
         <span className="text-gray-500 text-sm">
-          {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-          }) : "-"}
+          {user.createdAt
+            ? new Date(user.createdAt).toLocaleDateString("fr-FR", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : "-"}
         </span>
       </td>
-
-    
     </TableRow>
   );
 }

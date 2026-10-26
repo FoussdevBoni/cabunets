@@ -25,6 +25,7 @@ export default function UsersList({
     { header: "Rôle", className: "w-1/6" },
     { header: "Contact", className: "w-1/5" },
     { header: "Statut", className: "w-1/6" },
+    { header: "Dernière connexion", className: "hidden lg:table-cell w-1/6" },
     { header: "Inscrit le", className: "hidden lg:table-cell w-1/6" },
   ];
 

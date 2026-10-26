@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
 import { Loader2, CheckCircle2, XCircle, Smartphone, ArrowRight } from "lucide-react"
-import { ordersService } from "../../hooks/orders/useOrders"
 import { Order } from "../../utils/database"
 import { getPawapayError } from "../../utils/getPawapayErrors" // Assure-toi d'ajuster le chemin de ton fichier
+import { orderService } from "../../services/orderService"
 
 export default function OrderPendingPage() {
     const [searchParams] = useSearchParams()
@@ -22,7 +22,7 @@ export default function OrderPendingPage() {
         if (!orderId) return
 
         try {
-            const updatedOrder = await ordersService.syncOrderStatus(orderId)
+            const updatedOrder = await orderService.syncOrderStatus(orderId)
 
             if (!updatedOrder) {
                 setFetchError("Commande introuvable")

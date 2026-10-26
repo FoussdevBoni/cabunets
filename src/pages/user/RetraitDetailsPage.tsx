@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  
   Wallet,
   Smartphone,
   Building2,
@@ -16,6 +15,8 @@ import {
   RefreshCw,
   Copy,
   Check,
+  TrendingDown,
+  ArrowRight,
 } from "lucide-react";
 import useToken from "../../hooks/auth/useToken";
 import { retraitsService } from "../../hooks/retraits/useRetraits";
@@ -126,7 +127,9 @@ export default function RetraitDetailsPage() {
     try {
       const response = await retraitsService.resendPayoutCallback(token, payoutId);
       if (response.success) {
-        alertSuccess("Callback renvoyé avec succès. Le statut sera mis à jour prochainement.");
+        alertSuccess(
+          "Callback renvoyé avec succès. Le statut sera mis à jour prochainement."
+        );
         await loadRetrait();
         setShowActions(false);
       } else {
@@ -244,6 +247,24 @@ export default function RetraitDetailsPage() {
   const actionsMenu = getActionsMenu();
   const hasActions = actionsMenu.length > 0;
 
+  // Champs "solde wallet"
+  const hasSoldeWalletAvant =
+    retrait.soldeWalletAvant !== undefined && retrait.soldeWalletAvant !== null;
+  const hasSoldeWalletApres =
+    retrait.soldeWalletApres !== undefined && retrait.soldeWalletApres !== null;
+  const currency = (retrait as any).currency || "CDF";
+
+  const soldeDelta =
+    hasSoldeWalletAvant && hasSoldeWalletApres
+      ? Number(retrait.soldeWalletAvant) - Number(retrait.soldeWalletApres)
+      : null;
+
+  const isRejectedWithoutDebit =
+    retrait.status?.toUpperCase() === "REJECTED" &&
+    hasSoldeWalletAvant &&
+    hasSoldeWalletApres &&
+    Number(retrait.soldeWalletApres) === Number(retrait.soldeWalletAvant);
+
   return (
     <PageLayout title="Détails du retrait">
       <div className="max-w-4xl mx-auto px-6 py-8">
@@ -286,9 +307,7 @@ export default function RetraitDetailsPage() {
                 <p className="text-sm text-gray-500">Montant demandé</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {retrait.amount?.toLocaleString()}{" "}
-                  <span className="text-lg text-gray-500">
-                    {(retrait as any).currency || "CDF"}
-                  </span>
+                  <span className="text-lg text-gray-500">{currency}</span>
                 </p>
               </div>
             </div>
@@ -356,7 +375,9 @@ export default function RetraitDetailsPage() {
                     </p>
                     {isAdmin && (
                       <button
-                        onClick={() => handleCopy(retrait.methodPayment?.number || "")}
+                        onClick={() =>
+                          handleCopy(retrait.methodPayment?.number || "")
+                        }
                         className="text-gray-400 hover:text-primary transition"
                         title="Copier"
                       >
@@ -433,6 +454,69 @@ export default function RetraitDetailsPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Évolution du wallet (admin uniquement) */}
+          {isAdmin && hasSoldeWalletAvant && (
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Évolution du wallet
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Solde avant */}
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Wallet className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Solde avant retrait</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {Number(retrait.soldeWalletAvant).toLocaleString()}{" "}
+                      <span className="text-gray-500">{currency}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Solde après */}
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <TrendingDown className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Solde après retrait</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {hasSoldeWalletApres
+                        ? Number(retrait.soldeWalletApres).toLocaleString()
+                        : "—"}{" "}
+                      {hasSoldeWalletApres && (
+                        <span className="text-gray-500">{currency}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Différence (débit) */}
+              {soldeDelta !== null && !isRejectedWithoutDebit && (
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                  <ArrowRight size={14} className="text-gray-400" />
+                  <span>
+                    Débit effectif :{" "}
+                    <span className="font-semibold text-red-600">
+                      -{soldeDelta.toLocaleString()} {currency}
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              {/* Mention spéciale pour retrait rejeté sans débit */}
+              {isRejectedWithoutDebit && (
+                <p className="mt-3 text-xs text-gray-500 italic">
+                  Aucun débit effectué (retrait rejeté).
+                </p>
+              )}
             </div>
           )}
 

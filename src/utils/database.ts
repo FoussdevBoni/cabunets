@@ -15,7 +15,13 @@ export interface UserBase {
 export interface User extends UserBase {
   isVerified?: boolean,
   isActive?: boolean
-  profile: Profile
+  profile: Profile;
+  impersonatedBy?: any;
+  // 🆕 Suivi d'activité
+  lastLoginAt?: string;
+  loginCount: number;
+  actionsCount: number;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

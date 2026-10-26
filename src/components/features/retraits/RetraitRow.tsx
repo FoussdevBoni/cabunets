@@ -21,13 +21,15 @@ export default function RetraitRow({
     const getStatusColor = (status?: Retrait["status"]) => {
         const normalized = status?.toUpperCase();
         if (normalized === "COMPLETED") return "bg-green-100 text-green-800";
+        if (normalized === "ACCEPTED") return "bg-blue-100 text-blue-800";
         if (normalized === "REJECTED") return "bg-red-100 text-red-800";
         return "bg-yellow-100 text-yellow-800";
     };
 
     const getStatusText = (status?: Retrait["status"]) => {
         const normalized = status?.toUpperCase();
-        if (normalized === "COMPLETED") return "Validé";
+        if (normalized === "COMPLETED") return "Complèté";
+        if (normalized === "ACCEPTED") return "Validé";
         if (normalized === "REJECTED") return "Rejeté";
         return "En attente";
     };
@@ -52,15 +54,15 @@ export default function RetraitRow({
 
             <td className="py-3 px-4">
                 <span className="font-bold text-gray-900">
-                    {retrait.amount?.toLocaleString()} FCFA
+                    {retrait.amount?.toLocaleString()} {retrait.currency || "CDF"}
                 </span>
             </td>
 
             <td className="py-3 px-4">
                 <div>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${retrait.methodPayment?.type === "Momo"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-purple-100 text-purple-800"
+                        ? "bg-blue-100 text-blue-800"
+                        : "bg-purple-100 text-purple-800"
                         }`}>
                         {retrait.methodPayment?.type === "Momo" ? "Mobile Money" : "Banque"}
                     </span>

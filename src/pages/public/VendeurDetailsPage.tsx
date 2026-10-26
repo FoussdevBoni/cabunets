@@ -193,7 +193,7 @@ export default function VendeurDetailsPage() {
                   </div>
                 )}
 
-             
+
               </div>
             </div>
           </div>
@@ -294,7 +294,9 @@ export default function VendeurDetailsPage() {
             </div>
 
             {/* Section Toutes les offres (optionnelle) */}
-            {offres && offres.length > 0 && (
+            {
+              /****
+               {offres && offres.length > 0 && (
               <div className="bg-white rounded-xl border overflow-hidden mb-6">
                 <div className="p-6 border-b">
                   <div className="flex items-center justify-between">
@@ -326,6 +328,9 @@ export default function VendeurDetailsPage() {
               </div>
             )}
 
+               * 
+               */
+            }
             {/* Note */}
             <div className="text-center">
               <p className="text-sm text-gray-500">

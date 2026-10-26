@@ -4,7 +4,9 @@ import { BackendData } from "./core/BackendData";
 export interface BaseRetrait {
     vendeurId?: string;
     amount: number;
-        type: 'cabunet' | 'vendeur';
+    soldeWalletAvant?: number;
+    soldeWalletApres?: number
+    type: 'cabunet' | 'vendeur';
 
     methodPayment: {
         type: "Momo" | "Bank";
@@ -13,7 +15,7 @@ export interface BaseRetrait {
     };
     rejectReason?: string;
     currency: "CDF" | "USD";
-     correspondent: string
+    correspondent: string
     status?: 'PENDING' | 'COMPLETED' | 'REJECTED';
 }
 
@@ -26,8 +28,8 @@ export interface RetraitInitiationResponse {
     success: boolean;
     message: string;
     data: {
-      retrait: Retrait;
-      status: string;
-      pawapayData: any;
+        retrait: Retrait;
+        status: string;
+        pawapayData: any;
     }
 }

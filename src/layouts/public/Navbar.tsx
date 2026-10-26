@@ -5,15 +5,13 @@ import {
   Menu,
   X,
   User,
-  Home,
   Package,
   Users,
   ShoppingBag,
   LogOut,
   ChevronDown,
   Settings,
-  LayoutDashboard,
-  CreditCard
+  LayoutDashboard
 } from 'lucide-react'
 import { useAuth } from '../../hooks/auth/useAuth'
 
@@ -175,11 +173,11 @@ export default function Navbar() {
           Se connecter
         </button>
         <button
-          onClick={() => navigate('/vendeur-register')}
+          onClick={() => navigate('/register')}
           className="hidden sm:inline-flex items-center gap-2 bg-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-primary/90 transition-all duration-200"
         >
           <UserPlus className="h-4 w-4" />
-          Devenir vendeur
+           S'inscrire 
         </button>
       </div>
     )
@@ -293,7 +291,7 @@ export default function Navbar() {
             {/* Bouton mobile pour non connecté */}
             {!user && (
               <button
-                onClick={() => navigate('/vendeur/register')}
+                onClick={() => navigate('/register')}
                 className="sm:hidden bg-primary text-white p-2 rounded-lg hover:bg-primary/90 transition"
               >
                 <UserPlus className="h-5 w-5" />
@@ -370,13 +368,13 @@ export default function Navbar() {
                   </button>
                   <button
                     onClick={() => {
-                      navigate('//vendeur-register')
+                      navigate('/register')
                       setIsMenuOpen(false)
                     }}
                     className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition"
                   >
                     <UserPlus className="h-5 w-5" />
-                    Devenir vendeur
+                     S'inscrire 
                   </button>
                 </>
               )}

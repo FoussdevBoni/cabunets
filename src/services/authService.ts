@@ -1,3 +1,4 @@
+import { captureReferral, clearReferral } from "../utils/referral";
 import axios from "axios";
 import { AuthResponse, CurrentUser, Profile, User, UserBase } from "../utils/database";
 import { API_URL } from "../utils/api";
@@ -25,7 +26,9 @@ export const authService = {
         username,
         avatar,
         profileData,
+        referralCode: captureReferral(),
       });
+      clearReferral();
       return data;
     } catch (error) {
       console.error(error)
@@ -43,6 +46,8 @@ export const authService = {
     const { data } = await axios.get(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+
+    console.log("user" , data)
     return {
       ...data,
       profile: {
