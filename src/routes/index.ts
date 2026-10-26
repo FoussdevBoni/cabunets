@@ -1,3 +1,4 @@
+import rewardRuleRoutes from "./metier/rewardRuleRoutes";
 // routes/index.ts
 import { Router } from "express";
 
@@ -37,6 +38,7 @@ router.use("/wallet", walletRoutes);
 router.use("/admin", adminRoutes);
 router.use("/stats", statsRoutes);
 router.use("/commissions", commissionRoutes);
+router.use("/reward-rules", rewardRuleRoutes);
 router.use("/affiliates", affiliateRoutes);
 router.use("/referrals", referralRoutes);
 router.use("/reward-withdrawals", rewardWithdrawalRoutes);

@@ -27,6 +27,9 @@ export interface ICommission extends Document {
 
   ruleSnapshot: {
     ruleId: mongoose.Types.ObjectId;
+    sourceAmount?: number;
+    sourceCurrency?: string;
+    conversionRate?: number;
     mode: string;
     fixedAmount?: number;
     percentage?: number;
@@ -112,6 +115,9 @@ const CommissionSchema = new Schema<ICommission>(
     },
 
     ruleSnapshot: {
+      sourceAmount: Number,
+      sourceCurrency: String,
+      conversionRate: Number,
       ruleId: {
         type: Schema.Types.ObjectId,
         ref: "RewardRule",

@@ -5,7 +5,7 @@ export type LedgerType =
   | "commission_credit"
   | "withdrawal_reserve"
   | "withdrawal_release"
-  | "regularisation";
+  | "regularisation" | "adjustment";
 
 export interface ILedgerEntry extends Document {
   _id: mongoose.Types.ObjectId;
@@ -51,7 +51,7 @@ const LedgerEntrySchema = new Schema<ILedgerEntry>(
         "commission_credit",
         "withdrawal_reserve",
         "withdrawal_release",
-        "adjustment",
+        "regularisation", "adjustment",
       ],
       required: true,
       index: true,
@@ -78,6 +78,17 @@ const LedgerEntrySchema = new Schema<ILedgerEntry>(
     timestamps: { createdAt: true, updatedAt: false },
   }
 );
+
+LedgerEntrySchema.pre("save", function (next) {
+  if (!this.isNew) return next(new Error("LedgerEntry est immuable : modification interdite"));
+  next();
+});
+LedgerEntrySchema.pre("findOneAndDelete", function (next) {
+  next(new Error("LedgerEntry est immuable : suppression interdite"));
+});
+LedgerEntrySchema.pre("replaceOne", function (next) {
+  next(new Error("LedgerEntry est immuable : remplacement interdit"));
+});
 
 LedgerEntrySchema.pre("findOneAndUpdate", function (next) {
   next(new Error("LedgerEntry est immuable : modification interdite"));

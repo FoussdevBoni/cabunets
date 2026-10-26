@@ -37,10 +37,12 @@ export const login = async (req: Request, res: Response) => {
 // ================= REGISTER =================
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, role, username, avatar, profileData, referralCode } =
+    const { email, password, role, username, avatar, profileData, referralCode, telephone, becomeAffiliate } =
       req.body;
 
     const result = await authService.register({
+      telephone,
+      becomeAffiliate: becomeAffiliate === true,
       email,
       password,
       role,

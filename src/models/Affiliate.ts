@@ -10,6 +10,7 @@ export interface IAffiliate extends Document {
   telephoneVerifie: boolean;
 
   statut: AffiliateStatus;
+  ledgerVersion: number;
 
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +31,7 @@ const AffiliateSchema = new Schema<IAffiliate>(
       index: true,
     },
 
+    ledgerVersion: { type: Number, default: 0 },
     telephoneVerifie: {
       type: Boolean,
       default: false,

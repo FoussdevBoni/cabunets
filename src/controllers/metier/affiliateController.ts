@@ -53,7 +53,10 @@ export const verifierTelephone = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Veuillez vous connecter." });
     }
 
-    const result = await affiliateService.verifierTelephone(req.user.userId);
+    if (req.user.role !== "admin" || !req.body.userId) {
+      return res.status(403).json({ message: "La vérification du téléphone nécessite un contrôle administrateur." });
+    }
+    const result = await affiliateService.verifierTelephone(req.body.userId);
 
     return res.status(200).json({
       message: "Téléphone vérifié avec succès.",

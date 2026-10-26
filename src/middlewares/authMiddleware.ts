@@ -33,6 +33,23 @@ export const authMiddleware = async (
       token,
       process.env.JWT_SECRET || "supersecret"
     ) as JwtPayload;
+    const account = await User.findById(decoded.id).select("role isActive username email avatar").lean();
+    if (!account || account.isActive === false || account.role !== decoded.role) {
+      return res.status(401).json({ message: "Compte indisponible. Veuillez vous reconnecter." });
+    }
+
+    // Reading the authenticated identity must not require a commerce profile.
+    // Legacy accounts may have been saved before their Client/Vendeur creation failed.
+    const identityOnly = (req.baseUrl === "/api/auth" && req.path === "/me") ||
+      ["/api/affiliates", "/api/referrals", "/api/commissions", "/api/reward-withdrawals", "/api/reward-rules"].includes(req.baseUrl);
+    if (identityOnly && decoded.role !== "admin") {
+      req.user = {
+        userId: decoded.id, role: decoded.role,
+        username: account.username ?? decoded.username ?? "",
+        email: account.email, avatar: account.avatar, profile: null,
+      };
+      return next();
+    }
 
     let profile: any;
     let effectiveRole: "admin" | "client" | "vendeur" = decoded.role;

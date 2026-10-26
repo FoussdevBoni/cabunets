@@ -64,7 +64,7 @@ export const getWithdrawalById = async (req: Request, res: Response) => {
 
     const { withdrawalId } = req.params;
 
-    const result = await rewardWithdrawalService.getById(withdrawalId);
+    const result = await rewardWithdrawalService.getById(withdrawalId, req.user.role === "admin");
 
     // Un affilié ne peut voir que ses propres retraits
     if (

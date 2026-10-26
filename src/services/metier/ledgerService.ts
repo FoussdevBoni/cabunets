@@ -1,6 +1,7 @@
 // src/services/metier/ledgerService.ts
 import mongoose from "mongoose";
 import { LedgerEntry, LedgerType } from "../../models/LedgerEntry";
+import { Commission } from "../../models/Commission";
 import { money } from "../../utils/money";
 
 export interface BalanceResult {
@@ -45,44 +46,28 @@ export const ledgerService = {
   // ----------------------------------------------------------
   // GET AFFILIATE BALANCE
   // ----------------------------------------------------------
-  async getBalance(affiliateId: string): Promise<BalanceResult> {
-    const result = await LedgerEntry.aggregate([
-      { $match: { affiliateId: new mongoose.Types.ObjectId(affiliateId) } },
-      {
-        $group: {
-          _id: null,
-          totalCredit: {
-            $sum: {
-              $cond: [{ $gt: ["$signedAmount", 0] }, "$signedAmount", 0],
-            },
-          },
-          totalDebit: {
-            $sum: {
-              $cond: [{ $lt: ["$signedAmount", 0] }, { $abs: "$signedAmount" }, 0],
-            },
-          },
-          currency: { $first: "$currency" },
-        },
-      },
-    ]);
-
-    if (!result || result.length === 0) {
-      return {
-        totalCredit: 0,
-        totalDebit: 0,
-        availableBalance: 0,
-        currency: money.DEFAULT_CURRENCY,
-      };
+  async getBalance(affiliateId: string, currency = "CDF", session?: mongoose.ClientSession): Promise<BalanceResult & { pendingBalance: number }> {
+    const entries = await LedgerEntry.find({ affiliateId, currency }).session(session ?? null).lean();
+    const commissions = await Commission.find({ affiliateId, currency }).session(session ?? null).lean();
+    const states = new Map(commissions.map(c => [String(c._id), c.status]));
+    let totalCredit = 0, totalDebit = 0;
+    for (const entry of entries) {
+      const status = entry.commissionId ? states.get(String(entry.commissionId)) : undefined;
+      // Old pending credits remain in the immutable history but cannot be withdrawn.
+      if (entry.type === "commission_credit" &&
+          !["disponible", "reservee", "payee"].includes(status ?? "")) continue;
+      // Cancellation removes the original credit from eligibility, together with its reversal.
+      if (entry.commissionId && ["annulee", "rejetee"].includes(status ?? "") &&
+          ["regularisation", "adjustment"].includes(entry.type)) continue;
+      if (entry.signedAmount > 0) totalCredit += entry.signedAmount;
+      else totalDebit -= entry.signedAmount;
     }
-
-    const { totalCredit, totalDebit, currency } = result[0];
-
-    return {
-      totalCredit: money.round(totalCredit),
-      totalDebit: money.round(totalDebit),
-      availableBalance: money.round(totalCredit - totalDebit),
-      currency,
-    };
+    const pendingBalance = commissions
+      .filter(c => ["detectee", "en_attente"].includes(c.status))
+      .reduce((sum, c) => sum + c.amount, 0);
+    return { totalCredit: money.round(totalCredit), totalDebit: money.round(totalDebit),
+      availableBalance: money.round(totalCredit - totalDebit), currency,
+      pendingBalance: money.round(pendingBalance) };
   },
 
   // ----------------------------------------------------------

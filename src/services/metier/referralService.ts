@@ -99,7 +99,12 @@ export const referralService = {
     ]);
 
     return {
-      items,
+      items: items.map(item => {
+        const value = item.toObject();
+        const child: any = value.filleulId;
+        return { ...value, filleulId: child?._id ?? value.filleulId,
+          filleul: child ?? { username: "Compte indisponible", email: "", isVerified: false } };
+      }),
       total,
       page,
       limit,

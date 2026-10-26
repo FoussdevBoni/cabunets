@@ -36,7 +36,8 @@ export const getMyBalance = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Veuillez vous connecter." });
     }
 
-    const result = await ledgerService.getBalance(req.user.userId);
+    const balance = await ledgerService.getBalance(req.user.userId);
+    const result = { ...balance, minimumWithdrawalAmount: Number(process.env.AFFILIATE_MIN_WITHDRAWAL_CDF ?? 5000) };
 
     return res.status(200).json({ data: result });
   } catch (err: any) {

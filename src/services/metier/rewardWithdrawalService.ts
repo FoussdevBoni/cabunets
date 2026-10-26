@@ -1,3 +1,5 @@
+import { affiliateTransaction } from "./affiliateTransaction";
+import { encryptDestination, decryptDestination } from "../../utils/paymentDestination";
 // src/services/metier/rewardWithdrawalService.ts
 import mongoose from "mongoose";
 import {
@@ -15,7 +17,7 @@ import {
   ForbiddenError,
 } from "../../utils/errors";
 
-const MIN_WITHDRAWAL_AMOUNT = 5000;
+
 
 export interface CreateWithdrawalParams {
   affiliateId: string;
@@ -30,188 +32,90 @@ export const rewardWithdrawalService = {
   // CREATE A WITHDRAWAL REQUEST
   // ----------------------------------------------------------
   async create(params: CreateWithdrawalParams) {
-    const { affiliateId, amount, channel, destination, countryCode } = params;
-
-    // 1. Validate amount
-    if (!amount || amount <= 0) {
-      throw new ValidationError("Le montant doit être supérieur à zéro");
+    const { affiliateId, channel, destination, countryCode } = params;
+    if (typeof params.amount !== "number" || !Number.isFinite(params.amount) || params.amount <= 0) {
+      throw new ValidationError("Montant invalide.");
     }
-
-    if (amount < MIN_WITHDRAWAL_AMOUNT) {
-      throw new ValidationError(
-        `Le montant minimum de retrait est de ${MIN_WITHDRAWAL_AMOUNT} ${money.DEFAULT_CURRENCY}`
-      );
+    const amount = money.round(params.amount);
+    const minimum = Number(process.env.AFFILIATE_MIN_WITHDRAWAL_CDF ?? 5000);
+    if (!Number.isFinite(minimum) || minimum <= 0) throw new ValidationError("Seuil de retrait mal configuré.");
+    if (amount < minimum) throw new ValidationError("Le minimum de retrait est de " + minimum + " CDF.");
+    if (!["airtel_money", "vodacom_mpesa", "orange_money", "africell_money", "manuel"].includes(channel)) {
+      throw new ValidationError("Canal de retrait invalide.");
     }
-
-    // 2. Check balance
-    const hasEnough = await ledgerService.hasEnough(affiliateId, amount);
-    if (!hasEnough) {
-      throw new ForbiddenError("Solde insuffisant pour ce retrait");
-    }
-
-    // 3. Normalize & mask destination
-    let maskedDestination = destination;
-
-    if (channel !== "manuel") {
-      const normalized = phone.normalize(destination, countryCode ?? "CD");
-      if (!normalized) {
-        throw new ValidationError("Numéro de téléphone invalide");
-      }
-      maskedDestination = phone.mask(normalized);
-    }
-
-    // 4. Create withdrawal + reserve amount in ledger (transaction)
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const [withdrawal] = await RewardWithdrawal.create(
-        [
-          {
-            affiliateId,
-            amount: money.round(amount),
-            currency: money.DEFAULT_CURRENCY,
-            channel,
-            maskedDestination,
-            status: "en_attente",
-          },
-        ],
-        { session }
-      );
-
-      // Reserve the amount in ledger (negative entry)
+    if (typeof destination !== "string" || !destination.trim()) throw new ValidationError("Destination requise.");
+    const normalized = phone.normalize(destination, countryCode ?? "CD");
+    if (!normalized) throw new ValidationError("Numéro de téléphone invalide.");
+    const destinationEncrypted = encryptDestination(normalized);
+    return affiliateTransaction(affiliateId, async session => {
+      const balance = await ledgerService.getBalance(affiliateId, "CDF", session);
+      if (balance.availableBalance < amount) throw new ForbiddenError("Solde insuffisant pour ce retrait.");
+      const [withdrawal] = await RewardWithdrawal.create([{
+        affiliateId, amount, currency: "CDF", channel, maskedDestination: phone.mask(normalized),
+        destinationEncrypted, status: "en_attente"
+      }], { session });
       await ledgerService.write({
-        affiliateId,
-        type: "withdrawal_reserve",
-        signedAmount: -amount,
-        currency: money.DEFAULT_CURRENCY,
-        description: `Réservation retrait ${withdrawal._id}`,
-        rewardWithdrawalId: withdrawal._id,
-        session,
+        affiliateId, type: "withdrawal_reserve", signedAmount: -amount, currency: "CDF",
+        description: "Réservation retrait " + withdrawal._id, rewardWithdrawalId: withdrawal._id, session
       });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      return withdrawal;
-    } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
-      throw err;
-    }
+      // Never expose ciphertext in the creation response.
+      const result = withdrawal.toObject();
+      delete result.destinationEncrypted;
+      return result;
+    }, true);
   },
 
   // ----------------------------------------------------------
   // APPROVE A WITHDRAWAL (admin)
   // ----------------------------------------------------------
   async approve(withdrawalId: string, adminId: string) {
-    const withdrawal = await RewardWithdrawal.findById(withdrawalId);
-    if (!withdrawal) {
-      throw new NotFoundError("Demande de retrait introuvable");
-    }
-
-    if (withdrawal.status === "approuvee") {
-      return { withdrawal, alreadyApproved: true };
-    }
-
-    if (withdrawal.status !== "en_attente") {
-      throw new ConflictError(
-        `Impossible d'approuver une demande au statut "${withdrawal.status}"`
-      );
-    }
-
-    withdrawal.status = "approuvee";
-    withdrawal.processedBy = new mongoose.Types.ObjectId(adminId);
-    withdrawal.processedAt = new Date();
-    await withdrawal.save();
-
-    return { withdrawal, alreadyApproved: false };
+    const withdrawal = await RewardWithdrawal.findOneAndUpdate(
+      { _id: withdrawalId, status: "en_attente" },
+      { $set: { status: "approuvee", processedBy: adminId, processedAt: new Date() } }, { new: true }
+    );
+    if (withdrawal) return { withdrawal, alreadyApproved: false };
+    const existing = await this.getById(withdrawalId);
+    if (existing.status === "approuvee") return { withdrawal: existing, alreadyApproved: true };
+    throw new ConflictError("Cette demande ne peut pas être approuvée.");
   },
 
-  // ----------------------------------------------------------
-  // REJECT A WITHDRAWAL (admin)
-  // ----------------------------------------------------------
   async reject(withdrawalId: string, adminId: string, reason: string) {
-    const withdrawal = await RewardWithdrawal.findById(withdrawalId);
-    if (!withdrawal) {
-      throw new NotFoundError("Demande de retrait introuvable");
-    }
+    if (!reason?.trim()) throw new ValidationError("Motif requis.");
+    const initial = await RewardWithdrawal.findById(withdrawalId);
+    if (!initial) throw new NotFoundError("Demande de retrait introuvable.");
+    return affiliateTransaction(String(initial.affiliateId), async session => {
+      const withdrawal = await RewardWithdrawal.findById(withdrawalId).session(session);
+      if (!withdrawal) throw new NotFoundError("Demande de retrait introuvable.");
+      if (withdrawal.status === "rejetee") return { withdrawal, alreadyRejected: true };
+      if (withdrawal.status === "payee") throw new ConflictError("Ce retrait est déjà payé.");
+      withdrawal.status = "rejetee"; withdrawal.reason = reason.trim();
+      withdrawal.processedBy = new mongoose.Types.ObjectId(adminId); withdrawal.processedAt = new Date();
+      await withdrawal.save({ session });
+      await ledgerService.write({ affiliateId: withdrawal.affiliateId, type: "withdrawal_release",
+        signedAmount: withdrawal.amount, currency: withdrawal.currency,
+        description: "Rejet retrait : " + reason, rewardWithdrawalId: withdrawal._id, session });
+      return { withdrawal, alreadyRejected: false };
+    });
+  },
 
-    if (withdrawal.status === "rejetee") {
-      return { withdrawal, alreadyRejected: true };
-    }
-
-    if (withdrawal.status === "payee") {
-      throw new ConflictError(
-        "Impossible de rejeter une demande déjà payée"
-      );
-    }
-
-    // Transaction : mettre à jour le retrait + libérer le montant
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      withdrawal.status = "rejetee";
-      withdrawal.reason = reason;
-      withdrawal.processedBy = new mongoose.Types.ObjectId(adminId);
+  async markAsPaid(withdrawalId: string, adminId: string, externalReference: string, paymentProof?: string) {
+    if (!externalReference?.trim()) throw new ValidationError("Référence de paiement requise.");
+    const initial = await RewardWithdrawal.findById(withdrawalId);
+    if (!initial) throw new NotFoundError("Demande de retrait introuvable.");
+    return affiliateTransaction(String(initial.affiliateId), async session => {
+      const withdrawal = await RewardWithdrawal.findById(withdrawalId).session(session);
+      if (!withdrawal) throw new NotFoundError("Demande de retrait introuvable.");
+      if (withdrawal.status === "payee") return { withdrawal, alreadyPaid: true };
+      if (withdrawal.status !== "approuvee") throw new ConflictError("Le retrait doit être approuvé.");
+      const balance = await ledgerService.getBalance(String(withdrawal.affiliateId), withdrawal.currency, session);
+      if (balance.availableBalance < 0) throw new ConflictError("Une régularisation du solde doit être examinée avant paiement.");
+      withdrawal.status = "payee"; withdrawal.externalReference = externalReference.trim();
+      withdrawal.paymentProof = paymentProof; withdrawal.processedBy = new mongoose.Types.ObjectId(adminId);
       withdrawal.processedAt = new Date();
       await withdrawal.save({ session });
-
-      // Release the reserved amount
-      await ledgerService.write({
-        affiliateId: withdrawal.affiliateId,
-        type: "withdrawal_release",
-        signedAmount: withdrawal.amount,
-        currency: withdrawal.currency,
-        description: `Rejet retrait ${withdrawal._id} : ${reason}`,
-        rewardWithdrawalId: withdrawal._id,
-        session,
-      });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      return { withdrawal, alreadyRejected: false };
-    } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
-      throw err;
-    }
-  },
-
-  // ----------------------------------------------------------
-  // MARK AS PAID (admin)
-  // ----------------------------------------------------------
-  async markAsPaid(
-    withdrawalId: string,
-    adminId: string,
-    externalReference: string,
-    paymentProof?: string
-  ) {
-    const withdrawal = await RewardWithdrawal.findById(withdrawalId);
-    if (!withdrawal) {
-      throw new NotFoundError("Demande de retrait introuvable");
-    }
-
-    if (withdrawal.status === "payee") {
-      return { withdrawal, alreadyPaid: true };
-    }
-
-    if (withdrawal.status !== "approuvee") {
-      throw new ConflictError(
-        `Impossible de marquer comme payé une demande au statut "${withdrawal.status}"`
-      );
-    }
-
-    withdrawal.status = "payee";
-    withdrawal.externalReference = externalReference;
-    withdrawal.paymentProof = paymentProof;
-    withdrawal.processedBy = new mongoose.Types.ObjectId(adminId);
-    withdrawal.processedAt = new Date();
-    await withdrawal.save();
-
-    return { withdrawal, alreadyPaid: false };
+      // Reservation already debited the ledger: payment must not debit twice.
+      return { withdrawal, alreadyPaid: false };
+    });
   },
 
   // ----------------------------------------------------------
@@ -285,16 +189,20 @@ export const rewardWithdrawalService = {
   // ----------------------------------------------------------
   // GET ONE
   // ----------------------------------------------------------
-  async getById(withdrawalId: string) {
+  async getById(withdrawalId: string, includeDestination = false) {
     const withdrawal = await RewardWithdrawal.findById(withdrawalId)
       .populate("affiliateId", "email username codeParrainage")
-      .populate("processedBy", "email username");
+      .populate("processedBy", "email username")
+      .select(includeDestination ? "+destinationEncrypted" : "");
 
     if (!withdrawal) {
       throw new NotFoundError("Demande de retrait introuvable");
     }
 
-    return withdrawal;
+    const result = withdrawal.toObject();
+    const destination = includeDestination && withdrawal.destinationEncrypted ? decryptDestination(withdrawal.destinationEncrypted) : undefined;
+    delete result.destinationEncrypted;
+    return { ...result, destination };
   },
 };
 

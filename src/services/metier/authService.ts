@@ -1,4 +1,8 @@
 // src/services/metier/authService.ts
+import mongoose from "mongoose";
+import { Affiliate } from "../../models/Affiliate";
+import { phone } from "../../utils/phone";
+import { codeGenerator } from "../../utils/codeGenerator";
 import User, { IUser } from "../../models/User";
 import { Vendeur } from "../../models/Vendeur";
 import { Client } from "../../models/Client";
@@ -16,6 +20,8 @@ import {
 // Types
 // ============================================================
 export interface RegisterPayload {
+  becomeAffiliate?: boolean;
+  telephone?: string;
   email: string;
   password: string;
   role: "client" | "vendeur" | "admin";
@@ -47,6 +53,7 @@ export const authService = {
       throw new NotFoundError("Utilisateur non trouvé");
     }
 
+    if (!user.isActive) throw new AuthError("Compte désactivé.");
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       throw new AuthError("Mot de passe incorrect");
@@ -66,6 +73,9 @@ export const authService = {
   // ---------- REGISTER ----------
   async register(payload: RegisterPayload) {
     const { email, password, role, username, avatar, profileData } = payload;
+    if (role !== "client" && role !== "vendeur") {
+      throw new ValidationError("Ce rôle n'est pas autorisé à l'inscription publique.");
+    }
 
     // Validation
     if (!email || !password || !role) {
@@ -83,6 +93,8 @@ export const authService = {
       throw new ConflictError("Email déjà utilisé");
     }
 
+    const affiliatePhone = payload.becomeAffiliate ? phone.normalize(payload.telephone ?? "") : null;
+    if (payload.becomeAffiliate && !affiliatePhone) throw new ValidationError("Téléphone valide requis.");
     // Création du user
     const user = new User({
       email,
@@ -98,23 +110,28 @@ export const authService = {
     user.emailConfirmationOtp = otpUtil.hash(code);
     user.emailConfirmationExpires = otpUtil.expiryFromNow(OTP_TTL_MINUTES);
 
-    await user.save();
-
-    // Profil lié selon le rôle
-    let profile = null;
-    if (role === "vendeur") {
-      profile = await Vendeur.create({
-        _id: user._id,
-        email,
-        ...(profileData ?? {}),
-      });
-    } else if (role === "client") {
-      profile = await Client.create({
-        _id: user._id,
-        email,
-        ...(profileData ?? {}),
-      });
-    }
+    let profile: any = null;
+    await mongoose.connection.transaction(async session => {
+        // Reset the raw password if MongoDB retries this transaction.
+        user.password = password;
+        if (payload.becomeAffiliate) {
+          user.isAffiliate = true;
+          user.codeParrainage = await codeGenerator.generateUnique(async code =>
+            !!(await User.exists({ codeParrainage: code }).session(session)));
+        }
+        await user.save({ session });
+        if (role === "vendeur") {
+          [profile] = await Vendeur.create([{ ...(profileData ?? {}), _id: user._id, email }], { session });
+        } else {
+          [profile] = await Client.create([{
+            ...(profileData ?? {}), _id: user._id,
+            whatsappNumber: profileData?.whatsappNumber ?? affiliatePhone ?? payload.telephone
+          }], { session });
+        }
+        if (payload.becomeAffiliate) await Affiliate.create([{
+          _id: user._id, telephone: affiliatePhone, telephoneVerifie: false, statut: "en_attente"
+        }], { session });
+    });
 
     // Envoi de l'email (on ne bloque pas si échec)
     try {
@@ -268,6 +285,8 @@ export const authService = {
       username: user.username,
       avatar: user.avatar,
       isPremium: user.isPremium,
+      isAffiliate: user.isAffiliate,
+      codeParrainage: user.codeParrainage,
       isVerified: user.isVerified,
       profile: roleInfo,
       lastLoginAt: user.lastLoginAt ?? null,

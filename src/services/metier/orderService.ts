@@ -132,6 +132,7 @@ class OrderService {
         sourceId: order._id.toString(),
         eventId: `order_delivered_${order._id}`,
         orderAmount: Number(order.price) || 0,
+        orderCurrency: order.currency,
       });
 
       console.log(`✅ Commission créée pour la commande ${order._id}`);
@@ -369,8 +370,15 @@ class OrderService {
   // ----------------------------------------------------------
   // DELIVER
   // ----------------------------------------------------------
-  async deliverOrder(id: string) {
-    const order = await Order.findById(id);
+  async deliverOrder(id: string, actor: { userId: string; role: string }) {
+    const target = await Order.findById(id);
+    if (target && actor.role !== "admin" &&
+        !(actor.role === "vendeur" && String(target.vendeurId) === actor.userId)) {
+      const error: any = new Error("Seul le vendeur de cette commande ou un administrateur peut confirmer la livraison.");
+      error.statusCode = 403;
+      throw error;
+    }
+    const order = target;
     if (!order) {
       const err: any = new Error("Commande non trouvée");
       err.statusCode = 404;
@@ -379,6 +387,7 @@ class OrderService {
 
     // 🆕 Si déjà livrée → on ne fait rien
     if (order.status === "DELIVERED") {
+      await this.triggerCommission(order);
       return order;
     }
 
@@ -390,8 +399,8 @@ class OrderService {
       throw err;
     }
 
-    const updated = await Order.findByIdAndUpdate(
-      id,
+    const updated = await Order.findOneAndUpdate(
+      { _id: id, status: "COMPLETED", ...(actor.role === "admin" ? {} : { vendeurId: actor.userId }) },
       { status: "DELIVERED", deliveredAt: new Date() },
       { new: true }
     );
@@ -401,6 +410,16 @@ class OrderService {
       await this.triggerCommission(updated);
     }
 
+    if (!updated) {
+      const current = await Order.findById(id);
+      if (current?.status === "DELIVERED") {
+        await this.triggerCommission(current);
+        return current;
+      }
+      const error: any = new Error("La commande a changé. Veuillez actualiser.");
+      error.statusCode = 409;
+      throw error;
+    }
     return updated;
   }
   // ----------------------------------------------------------
@@ -414,7 +433,7 @@ class OrderService {
       throw err;
     }
 
-    if (order.status === "COMPLETED" || order.status === "FAILED") {
+    if (order.status === "COMPLETED" || order.status === "FAILED" || order.status === "DELIVERED") {
       return { order, payment: null, depositPaymentStatus: undefined };
     }
 
