@@ -1,4 +1,6 @@
 // src/services/metier/commissionService.ts
+import { ClientSession } from "mongoose";
+import { Vendeur } from "../../models/Vendeur";
 import { Setting } from "../../models/Setting";
 import { affiliateTransaction } from "./affiliateTransaction";
 import { LedgerEntry } from "../../models/LedgerEntry";
@@ -23,13 +25,15 @@ export interface CreateCommissionParams {
   eventId: string;
   orderAmount?: number;
   orderCurrency?: string;
+  qualifyingOrderId?: string;
+  occurredAt?: Date;
 }
 
 export const commissionService = {
   // ----------------------------------------------------------
   // CREATE A COMMISSION
   // ----------------------------------------------------------
-  async create(params: CreateCommissionParams) {
+  async create(params: CreateCommissionParams, session?: ClientSession) {
     const {
       affiliateId,
       referralId,
@@ -41,21 +45,21 @@ export const commissionService = {
     } = params;
 
     // 1. Idempotency check
-    const existing = await Commission.findOne({ affiliateId, eventId });
+    const existing = await Commission.findOne({ affiliateId, eventId }).session(session ?? null);
     if (existing) {
       return { commission: existing, alreadyExists: true };
     }
 
     // 2. Find active rule for this program
-    const affiliate = await Affiliate.findById(affiliateId);
+    const affiliate = await Affiliate.findById(affiliateId).session(session ?? null);
     if (!affiliate || affiliate.statut !== "actif") throw new ConflictError("Affilié non actif.");
-    const now = new Date();
+    const now = params.occurredAt ?? new Date();
     const rule = await RewardRule.findOne({ program, active: true,
       $and: [
         { $or: [{ startDate: null }, { startDate: { $lte: now } }] },
         { $or: [{ endDate: null }, { endDate: { $gte: now } }] }
       ]
-    }).sort({ updatedAt: -1 });
+    }).sort({ updatedAt: -1 }).session(session ?? null);
     if (!rule) {
       throw new NotFoundError(
         `Aucune règle active pour le programme "${program}"`
@@ -66,7 +70,7 @@ export const commissionService = {
     let conversionRate = 1;
     if ((rule.mode === "pourcentage" || rule.mode === "hybride") &&
         params.orderCurrency && params.orderCurrency !== rule.currency) {
-      const settings = await Setting.findOne();
+      const settings = await Setting.findOne().session(session ?? null);
       if (!settings) throw new ValidationError("Taux de change non configurés.");
       const from = settings.getExchangeRate(params.orderCurrency);
       const to = settings.getExchangeRate(rule.currency);
@@ -106,22 +110,23 @@ export const commissionService = {
     // 4. Apply cap
     amount = money.applyCap(amount, rule.cap);
 
-    if (amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       throw new ValidationError("Le montant calculé est nul ou négatif");
     }
 
     // 5. Compute availability date
     const availableAt = new Date(
-      Date.now() + rule.availabilityDelayDays * 24 * 60 * 60 * 1000
+      (params.occurredAt?.getTime() ?? Date.now()) + rule.availabilityDelayDays * 24 * 60 * 60 * 1000
     );
 
     // 6. Create commission
     let commission;
-    try { commission = await Commission.create({
+    try { [commission] = await Commission.create([{
       affiliateId,
       referralId,
       sourceType,
       sourceId,
+      qualifyingOrderId: params.qualifyingOrderId,
       eventId,
       program,
       amount,
@@ -139,10 +144,10 @@ export const commissionService = {
         availabilityDelayDays: rule.availabilityDelayDays,
       },
       availableAt,
-    });
+    }], { session });
 
     } catch (error: any) {
-      if (error.code !== 11000) throw error;
+      if (session || error.code !== 11000) throw error;
       const existing = await Commission.findOne({ affiliateId, eventId });
       if (!existing) throw error;
       return { commission: existing, alreadyExists: true };
@@ -166,11 +171,14 @@ export const commissionService = {
       if (commission.availableAt && commission.availableAt > new Date()) {
         throw new ConflictError("Le délai de disponibilité n'est pas expiré.");
       }
-      if (commission.sourceType === "order") {
-        const order = await Order.findById(commission.sourceId).session(session);
-        if (!order || order.status !== "DELIVERED") {
-          throw new ConflictError("La commande doit être payée et livrée.");
-        }
+      const sourceOrderId = commission.sourceType === "order" ? commission.sourceId : commission.qualifyingOrderId;
+      if (!sourceOrderId) throw new ConflictError("La vente admissible doit être référencée.");
+      const order = await Order.findOneAndUpdate({ _id: sourceOrderId, status: "DELIVERED" },
+        { $inc: { affiliateVersion: 1 } }, { session, new: true });
+      if (!order) throw new ConflictError("La commande doit être payée et livrée.");
+      if (commission.sourceType === "seller_activation") {
+        const seller = await Vendeur.findOne({ _id: commission.sourceId, isApproved: true }).session(session);
+        if (!seller || order.vendeurId !== commission.sourceId) throw new ConflictError("Vendeur ou vente non admissible.");
       }
       const credit = await LedgerEntry.findOne({ commissionId, type: "commission_credit" }).session(session);
       if (!credit) await ledgerService.write({
@@ -185,15 +193,15 @@ export const commissionService = {
     }, true);
   },
 
-  async cancel(commissionId: string, reason: string) {
+  async cancel(commissionId: string, reason: string, existingSession?: ClientSession) {
     if (!reason?.trim()) throw new ValidationError("Motif requis.");
     const initial = await Commission.findById(commissionId);
     if (!initial) throw new NotFoundError("Commission introuvable");
-    return affiliateTransaction(String(initial.affiliateId), async session => {
+    const action = async (session: ClientSession) => {
       const commission = await Commission.findById(commissionId).session(session);
       if (!commission) throw new NotFoundError("Commission introuvable");
       if (commission.status === "annulee") return { commission, alreadyCancelled: true };
-      if (commission.status === "payee") throw new ConflictError("Une régularisation du paiement est nécessaire.");
+      // A reversal is recorded even after payout; the resulting debt remains visible.
       const credit = await LedgerEntry.findOne({ commissionId, type: "commission_credit" }).session(session);
       if (credit) await ledgerService.write({
         affiliateId: commission.affiliateId, type: "regularisation",
@@ -203,7 +211,8 @@ export const commissionService = {
       commission.status = "annulee"; commission.reason = reason.trim();
       await commission.save({ session });
       return { commission, alreadyCancelled: false };
-    });
+    };
+    return existingSession ? action(existingSession) : affiliateTransaction(String(initial.affiliateId), action);
   },
 
   // ----------------------------------------------------------

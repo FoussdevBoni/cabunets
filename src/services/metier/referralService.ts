@@ -1,4 +1,6 @@
 // src/services/metier/referralService.ts
+import { ClientSession } from "mongoose";
+import { ValidationError } from "../../utils/errors";
 import User from "../../models/User";
 import { Affiliate } from "../../models/Affiliate";
 import { Referral, ReferralType, ReferralSource } from "../../models/Referral";
@@ -14,31 +16,29 @@ export const referralService = {
   async attribuerParrain(
     filleulId: string,
     code: string | undefined,
-    source: ReferralSource = "lien"
+    source: ReferralSource = "lien",
+    session?: ClientSession
   ) {
-    // 1. Pas de code → pas d'attribution
-    if (!code || code.trim().length === 0) {
-      return null;
-    }
-
+    if (code === undefined || code === null || code === "") return null;
+    if (typeof code !== "string") throw new ValidationError("Code de parrainage invalide.");
     const codeNorm = code.trim().toUpperCase();
+    if (!/^[A-Z0-9-]{4,20}$/.test(codeNorm)) throw new ValidationError("Code de parrainage invalide.");
 
     // 2. Trouver le parrain via son code
     const parrain = await User.findOne({
       codeParrainage: codeNorm,
       isAffiliate: true,
-      isActive: true,
-    });
+      isActive: { $ne: false },
+    }).session(session ?? null);
 
     if (!parrain) {
-      // Code invalide → on ignore silencieusement
-      return null;
+      throw new ValidationError("Code de parrainage invalide ou inactif.");
     }
 
     // 3. Vérifier que l'affilié est actif
-    const affiliateDoc = await Affiliate.findById(parrain._id);
+    const affiliateDoc = await Affiliate.findById(parrain._id).session(session ?? null);
     if (!affiliateDoc || affiliateDoc.statut !== "actif") {
-      return null;
+      throw new ValidationError("Ce parrain n’est pas actif. Corrigez ou retirez le code pour continuer.");
     }
 
     // 4. Anti auto-parrainage
@@ -47,13 +47,13 @@ export const referralService = {
     }
 
     // 5. Le filleul a-t-il déjà un parrain ?
-    const dejaParraine = await Referral.findOne({ filleulId });
+    const dejaParraine = await Referral.findOne({ filleulId }).session(session ?? null);
     if (dejaParraine) {
       return dejaParraine;
     }
 
     // 6. Récupérer le filleul
-    const filleul = await User.findById(filleulId);
+    const filleul = await User.findById(filleulId).session(session ?? null);
     if (!filleul) {
       throw new NotFoundError("Filleul introuvable");
     }
@@ -63,14 +63,14 @@ export const referralService = {
       filleul.role === "vendeur" ? "vendeur" : "client";
 
     // 8. Créer le Referral
-    const referral = await Referral.create({
+    const [referral] = await Referral.create([{
       affiliateId: parrain._id,
       filleulId: filleul._id,
       type,
       codeUtilise: codeNorm,
       source,
       attributedAt: new Date(),
-    });
+    }], { session });
 
     return referral;
   },

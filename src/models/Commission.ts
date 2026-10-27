@@ -18,6 +18,7 @@ export interface ICommission extends Document {
 
   sourceType: "order" | "seller_activation";
   sourceId: string;
+  qualifyingOrderId?: mongoose.Types.ObjectId;
   eventId: string;
 
   program: string;
@@ -69,6 +70,7 @@ const CommissionSchema = new Schema<ICommission>(
       required: true,
     },
 
+    qualifyingOrderId: { type: Schema.Types.ObjectId, ref: "Order", index: true },
     sourceId: {
       type: String,
       required: true,

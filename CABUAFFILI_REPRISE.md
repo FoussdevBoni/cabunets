@@ -49,3 +49,14 @@ Les dépôts frontend contenaient déjà de nombreuses modifications non commit�
 La connexion et l’inscription chargent la session dans AuthContext avant la navigation. RedirectPage utilise cet état sans relancer la requête de profil. Les anciennes requêtes ne peuvent pas remplacer une nouvelle session et les erreurs API sont affichées à la connexion. Le middleware accepte les anciens comptes sans champ isActive tout en refusant explicitement isActive=false. Les routes d’identité et d’affiliation ne nécessitent plus un profil commercial client/vendeur ; les contrôles de rôle et la gestion administrateur restent applicables.
 
 Vérifications : onze tests backend, quatre tests de redirection et deux tests de conservation du code passent. TypeScript passe pour backend et cabuaffili-frontend. Les erreurs relevées dans vue restent hors du lot.
+
+
+## Livraison complémentaire — 27 octobre 2026
+
+Le cycle d’affiliation couvre désormais les clients et les vendeurs approuvés (première vente livrée), les annulations, les remboursements référencés, les reprises idempotentes et les régularisations documentées. Une dette après remboursement reste visible et empêche de dépenser un solde inexistant.
+
+L’administration fournit des indicateurs globaux par période et devise, les exports CSV, le journal d’audit, les anomalies, l’approbation vendeur et le seuil de retrait configurable. Les callbacks de paiement exigent le secret de passerelle. Le code de parrainage est visible et corrigeable à l’inscription Cabunets.
+
+Validation : backend TypeScript, 13 tests unitaires et 12 scénarios d’intégration (13 résultats avec le conteneur de suite) réussis sur un MongoDB replica set temporaire ; CabuAffili 4 tests et Cabunets 2 tests réussis ; vérifications TypeScript et builds de production des deux interfaces réussis. Les fournisseurs financiers sont simulés. Connexion, reprise de session, administration mobile et transmission du code entre applications vérifiées dans le navigateur avec des données fictives.
+
+La base existante n’a pas été effacée. Les étapes externes avant production sont décrites dans [DEPLOYMENT_CABUAFFILI.md](DEPLOYMENT_CABUAFFILI.md), notamment la rotation des secrets exposés et l’association d’un site Firebase distinct pour CabuAffili. Cette livraison ne prétend pas remplacer un audit de sécurité complet de toutes les fonctions historiques Cabunets.

@@ -1,3 +1,4 @@
+import { affiliateLifecycleService } from "./affiliateLifecycleService";
 // services/metier/orderService.ts
 import { Order } from "../../models/Order";
 import { cabupayPaymentService, CreateDepositDTO } from "../providers/cabupayPaymentService";
@@ -118,27 +119,7 @@ class OrderService {
    * Ne bloque JAMAIS le flux principal en cas d'erreur.
    */
   private async triggerCommission(order: any) {
-    try {
-      const referral = await Referral.findOne({ filleulId: order.clientId });
-      if (!referral) {
-        return; // pas de parrain → pas de commission
-      }
-
-      await commissionService.create({
-        affiliateId: referral.affiliateId.toString(),
-        referralId: referral._id.toString(),
-        program: "affiliation_client",
-        sourceType: "order",
-        sourceId: order._id.toString(),
-        eventId: `order_delivered_${order._id}`,
-        orderAmount: Number(order.price) || 0,
-        orderCurrency: order.currency,
-      });
-
-      console.log(`✅ Commission créée pour la commande ${order._id}`);
-    } catch (err) {
-      console.error("❌ Erreur création commission :", err);
-    }
+    await affiliateLifecycleService.safelySync(String(order._id));
   }
 
   // ----------------------------------------------------------
@@ -164,7 +145,7 @@ class OrderService {
     }
 
     const targetAmount = price || amount;
-    if (!targetAmount) {
+    if (!Number.isFinite(Number(targetAmount)) || Number(targetAmount) <= 0) {
       const err: any = new Error("Le prix de la commande (price) est obligatoire.");
       err.statusCode = 400;
       throw err;
@@ -174,6 +155,10 @@ class OrderService {
 
     const order = await Order.create({
       ...body,
+      price: Number(targetAmount),
+      deliveredAt: undefined,
+      reversedAt: undefined,
+      affiliateVersion: 0,
       correspondent: selectedCorrespondent,
       country,
       currency,
@@ -345,6 +330,10 @@ class OrderService {
   // UPDATE
   // ----------------------------------------------------------
   async updateOrder(id: string, body: any) {
+    if (body.status !== undefined) {
+      const error: any = new Error("Utilisez les actions de livraison, annulation ou remboursement pour changer le statut.");
+      error.statusCode = 400; throw error;
+    }
     const order = await Order.findByIdAndUpdate(id, body, { new: true });
     if (!order) {
       const err: any = new Error("Commande non trouvée");
@@ -358,13 +347,8 @@ class OrderService {
   // DELETE
   // ----------------------------------------------------------
   async deleteOrder(id: string) {
-    const order = await Order.findByIdAndDelete(id);
-    if (!order) {
-      const err: any = new Error("Commande non trouvée");
-      err.statusCode = 404;
-      throw err;
-    }
-    return order;
+    const result = await affiliateLifecycleService.reverseOrder(id, "CANCELLED", "Annulation administrateur.");
+    return result.order;
   }
 
   // ----------------------------------------------------------
@@ -401,7 +385,7 @@ class OrderService {
 
     const updated = await Order.findOneAndUpdate(
       { _id: id, status: "COMPLETED", ...(actor.role === "admin" ? {} : { vendeurId: actor.userId }) },
-      { status: "DELIVERED", deliveredAt: new Date() },
+      { $set: { status: "DELIVERED", deliveredAt: new Date() }, $inc: { __v: 1 } },
       { new: true }
     );
 
@@ -433,7 +417,7 @@ class OrderService {
       throw err;
     }
 
-    if (order.status === "COMPLETED" || order.status === "FAILED" || order.status === "DELIVERED") {
+    if (order.status === "COMPLETED" || ["FAILED", "DELIVERED", "CANCELLED", "REFUNDED"].includes(order.status)) {
       return { order, payment: null, depositPaymentStatus: undefined };
     }
 
@@ -487,7 +471,7 @@ class OrderService {
     if (
       order.status === "COMPLETED" ||
       order.status === "FAILED" ||
-      order.status === "DELIVERED"
+      ["DELIVERED", "CANCELLED", "REFUNDED"].includes(order.status)
     ) {
       return { order, payment: null, depositPaymentStatus: undefined };
     }

@@ -1,4 +1,5 @@
 // controllers/metier/commissionController.ts
+import { affiliateSettingsService } from "../../services/metier/affiliateSettingsService";
 import { Request, Response } from "express";
 import { commissionService } from "../../services/metier/commissionService";
 import { ledgerService } from "../../services/metier/ledgerService";
@@ -37,7 +38,8 @@ export const getMyBalance = async (req: Request, res: Response) => {
     }
 
     const balance = await ledgerService.getBalance(req.user.userId);
-    const result = { ...balance, minimumWithdrawalAmount: Number(process.env.AFFILIATE_MIN_WITHDRAWAL_CDF ?? 5000) };
+    const settings = await affiliateSettingsService.get();
+    const result = { ...balance, minimumWithdrawalAmount: settings.minWithdrawalAmount };
 
     return res.status(200).json({ data: result });
   } catch (err: any) {

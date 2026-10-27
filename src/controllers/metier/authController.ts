@@ -1,14 +1,15 @@
+import { jwtSecret } from "../../utils/authSecrets";
 // controllers/metier/authController.ts
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { authService } from "../../services/metier/authService";
-import { referralService } from "../../services/metier/referralService";
+
 
 // ================= TOKEN =================
 export const generateToken = (userId: string, role: string) => {
   return jwt.sign(
     { id: userId, role },
-    process.env.JWT_SECRET || "supersecret",
+    jwtSecret(),
     { expiresIn: "7d" }
   );
 };
@@ -43,6 +44,7 @@ export const register = async (req: Request, res: Response) => {
     const result = await authService.register({
       telephone,
       becomeAffiliate: becomeAffiliate === true,
+      referralCode,
       email,
       password,
       role,
@@ -50,19 +52,6 @@ export const register = async (req: Request, res: Response) => {
       avatar,
       profileData,
     });
-
-    // 🆕 Attribution du parrain si un code est fourni
-    if (referralCode) {
-      try {
-        await referralService.attribuerParrain(
-          result.user.id,
-          referralCode,
-          "lien"
-        );
-      } catch (err) {
-        console.error("Erreur attribution parrain :", err);
-      }
-    }
 
     const token = generateToken(result.user.id, result.user.role);
 

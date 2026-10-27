@@ -1,3 +1,4 @@
+import { jwtSecret } from "../utils/authSecrets";
 // middlewares/authMiddleware.ts
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
@@ -31,7 +32,7 @@ export const authMiddleware = async (
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "supersecret"
+      jwtSecret()
     ) as JwtPayload;
     const account = await User.findById(decoded.id).select("role isActive username email avatar").lean();
     if (!account || account.isActive === false || account.role !== decoded.role) {

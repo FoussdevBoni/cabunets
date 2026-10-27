@@ -222,7 +222,7 @@ class UserService {
     if (user.role === "vendeur" && profileData) {
       profile = await Vendeur.findByIdAndUpdate(
         user._id,
-        { $set: profileData },
+        { $set: Object.fromEntries(Object.entries(profileData).filter(([key]) => !["isApproved", "approvedBy", "approvedAt", "_id"].includes(key))) },
         { new: true }
       );
     }

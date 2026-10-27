@@ -1,3 +1,4 @@
+import { verifyGatewayHeader } from "../../utils/authSecrets";
 import axios from 'axios';
 
 export interface CreateDepositDTO {
@@ -42,7 +43,6 @@ export interface CabupayWebhookPayload {
 export class CabupayPaymentService {
   private baseUrl = process.env.CABUPAY_URL || 'https://cabupay-production.up.railway.app/v1';
   private paymentsUrl = `${this.baseUrl}/payments`;
-  private sharedSecret = process.env.INTERNAL_SHARED_SECRET || 'fallback_secret';
 
   /**
    * 1. Déterminer l'opérateur (correspondent) à partir d'un numéro de téléphone
@@ -170,9 +170,7 @@ export class CabupayPaymentService {
     payload: CabupayWebhookPayload,
     signatureHeader?: string
   ): CabupayWebhookPayload {
-    if (signatureHeader && signatureHeader !== this.sharedSecret) {
-      throw new Error('Signature du Webhook invalide ou corrompue');
-    }
+    verifyGatewayHeader(signatureHeader);
 
     console.log(`[CabupayPaymentService Webhook] Notification reçue pour Ref: ${payload.clientReference} | Statut: ${payload.status}`);
 

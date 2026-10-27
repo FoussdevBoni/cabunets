@@ -21,6 +21,7 @@ export const ledgerService = {
     signedAmount: number;
     currency?: string;
     description: string;
+    operationKey?: string;
     commissionId?: string | mongoose.Types.ObjectId;
     rewardWithdrawalId?: string | mongoose.Types.ObjectId; // 🆕 renommé
     session?: mongoose.ClientSession;
@@ -33,6 +34,7 @@ export const ledgerService = {
           signedAmount: money.round(entry.signedAmount),
           currency: entry.currency ?? money.DEFAULT_CURRENCY,
           description: entry.description,
+          operationKey: entry.operationKey,
           commissionId: entry.commissionId,
           rewardWithdrawalId: entry.rewardWithdrawalId, // 🆕 renommé
         },

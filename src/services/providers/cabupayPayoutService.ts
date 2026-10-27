@@ -1,3 +1,4 @@
+import { verifyGatewayHeader } from "../../utils/authSecrets";
 // services/cabupayPayoutService.ts
 import axios from 'axios';
 
@@ -56,7 +57,6 @@ export interface DirectPayout {
 export class CabupayPayoutService {
   private baseUrl = process.env.CABUPAY_URL || 'https://cabupay-production.up.railway.app/v1';
   private payoutsUrl = `${this.baseUrl}/payouts`;
-  private sharedSecret = process.env.INTERNAL_SHARED_SECRET || 'fallback_secret';
   private callbackUrl = process.env.BASE_URL || 'https://cabunets-production.up.railway.app';
 
   /**
@@ -183,9 +183,7 @@ export class CabupayPayoutService {
     payload: PayoutWebhookPayload,
     signatureHeader?: string
   ): PayoutWebhookPayload {
-    if (signatureHeader && signatureHeader !== this.sharedSecret) {
-      throw new Error('Signature du Webhook invalide ou corrompue');
-    }
+    verifyGatewayHeader(signatureHeader);
 
     console.log(`[CabupayPayoutService Webhook] Notification reçue pour Payout: ${payload.payoutId} | Statut: ${payload.status}`);
 

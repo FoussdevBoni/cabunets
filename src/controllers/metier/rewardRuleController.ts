@@ -27,6 +27,11 @@ export async function rewardRules(req: Request, res: Response) {
       return res.status(400).json({ message: "La date de fin doit suivre la date de début." });
     }
     if (rule.currency !== "CDF") return res.status(400).json({ message: "Les nouvelles règles utilisent le CDF pour les retraits du programme." });
+    if ((rule.mode === "fixe" && !(rule.fixedAmount! > 0)) ||
+        (rule.mode === "pourcentage" && !(rule.percentage! > 0)) ||
+        (rule.mode === "hybride" && !(rule.fixedAmount! > 0 || rule.percentage! > 0))) {
+      return res.status(400).json({ message: "La récompense doit produire un montant strictement positif." });
+    }
     await rule.save();
     return res.status(id ? 200 : 201).json({ data: rule });
   } catch (error: any) {

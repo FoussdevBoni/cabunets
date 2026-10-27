@@ -1,3 +1,4 @@
+process.env.JWT_SECRET = "unit-test-secret-only-no-production-use";
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -100,7 +101,7 @@ test("validation credits exactly once inside the financial transaction, includin
   t.mock.method(mongoose, "startSession", async () => session as any);
   t.mock.method(Affiliate, "findOneAndUpdate", async () => ({} as any));
   t.mock.method(Commission, "findById", () => query(commission));
-  t.mock.method(Order, "findById", () => query({ status: "DELIVERED" }));
+  t.mock.method(Order, "findOneAndUpdate", async () => ({ status: "DELIVERED" }) as any);
   let credit: any = null, writes = 0;
   t.mock.method(LedgerEntry, "findOne", () => query(credit));
   t.mock.method(LedgerEntry, "create", async (entries: any, options: any) => {
@@ -177,4 +178,23 @@ test("an explicitly deactivated account remains rejected when loading its identi
   } as any, res, () => { next = true; });
   assert.equal(status, 401);
   assert.equal(next, false);
+});
+
+test("payment callbacks cannot be forged by omitting the gateway header", async () => {
+  const { verifyGatewayHeader } = await import("../src/utils/authSecrets");
+  const old = process.env.INTERNAL_SHARED_SECRET;
+  process.env.INTERNAL_SHARED_SECRET = "test-gateway";
+  try {
+    assert.throws(() => verifyGatewayHeader(), (error: any) => error.statusCode === 401);
+    assert.throws(() => verifyGatewayHeader("wrong"), (error: any) => error.statusCode === 401);
+    assert.doesNotThrow(() => verifyGatewayHeader("test-gateway"));
+  } finally { if (old === undefined) delete process.env.INTERNAL_SHARED_SECRET; else process.env.INTERNAL_SHARED_SECRET = old; }
+});
+
+test("exports neutralize spreadsheet formulas and reject invalid date ranges", async () => {
+  const { csvCell, period } = await import("../src/utils/affiliateQuery");
+  assert.equal(csvCell("=1+1").charAt(1), "'");
+  assert.equal(csvCell(123).slice(1, -1), "123");
+  assert.throws(() => period({ from: "not-a-date" }));
+  assert.throws(() => period({ from: "2026-10-28", to: "2026-10-01" }));
 });

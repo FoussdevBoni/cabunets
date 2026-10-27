@@ -44,7 +44,7 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     }
 
     // 2. Idempotence : Si déjà en statut final, on ne retraite pas
-    const FINAL_STATUSES = ['COMPLETED', 'FAILED', 'DELIVERED'];
+    const FINAL_STATUSES = ['COMPLETED', 'FAILED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
     if (FINAL_STATUSES.includes(order.status)) {
       console.log(`[Webhook Cabupay] Commande #${order._id} déjà en statut final (${order.status}). Ignoré.`);
       res.status(200).json({ success: true, message: 'Notification déjà traitée' });
@@ -117,7 +117,7 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     res.status(200).json({ success: true, message: 'Notification traitée' });
   } catch (error: any) {
     console.error('[Cabupay Webhook Error]:', error.message || error);
-    res.status(400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
+    res.status(error.statusCode ?? 400).json({ success: false, error: error.message || 'Erreur lors du traitement' });
   }
 };
 

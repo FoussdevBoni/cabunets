@@ -13,7 +13,7 @@ import { getDeposit } from "../../controllers/utilitaires/cabupayPaymentControll
 const router = express.Router();
 
 // 🔓 Routes publiques
-router.post("/", createOrder);
+router.post("/", (req, res, next) => req.headers.authorization ? authMiddleware(req, res, next) : next(), createOrder);
 
 // 🔐 Routes spécifiques AVANT /:id
 router.get("/stats", authMiddleware, getOrdersStats); // 🆕

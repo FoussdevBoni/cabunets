@@ -1,5 +1,6 @@
 // src/services/metier/authService.ts
 import mongoose from "mongoose";
+import { referralService } from "./referralService";
 import { Affiliate } from "../../models/Affiliate";
 import { phone } from "../../utils/phone";
 import { codeGenerator } from "../../utils/codeGenerator";
@@ -21,6 +22,7 @@ import {
 // ============================================================
 export interface RegisterPayload {
   becomeAffiliate?: boolean;
+  referralCode?: string;
   telephone?: string;
   email: string;
   password: string;
@@ -72,7 +74,9 @@ export const authService = {
 
   // ---------- REGISTER ----------
   async register(payload: RegisterPayload) {
-    const { email, password, role, username, avatar, profileData } = payload;
+    const { email, password, role, username, avatar, profileData: incomingProfile } = payload;
+    const allowed = role === "vendeur" ? ["whatsappNumber", "advantage", "availability", "paymentAmount", "photoUrls", "networks", "openingTime", "closingTime"] : ["whatsappNumber", "rechargePhone", "address"];
+    const profileData = Object.fromEntries(allowed.filter(key => incomingProfile?.[key] !== undefined).map(key => [key, incomingProfile![key]]));
     if (role !== "client" && role !== "vendeur") {
       throw new ValidationError("Ce rôle n'est pas autorisé à l'inscription publique.");
     }
@@ -131,6 +135,7 @@ export const authService = {
         if (payload.becomeAffiliate) await Affiliate.create([{
           _id: user._id, telephone: affiliatePhone, telephoneVerifie: false, statut: "en_attente"
         }], { session });
+        await referralService.attribuerParrain(String(user._id), payload.referralCode, "lien", session);
     });
 
     // Envoi de l'email (on ne bloque pas si échec)

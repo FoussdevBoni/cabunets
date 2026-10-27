@@ -20,6 +20,7 @@ export interface ILedgerEntry extends Document {
   currency: string;
 
   description: string;
+  operationKey?: string;
 
   createdAt: Date;
 }
@@ -68,6 +69,7 @@ const LedgerEntrySchema = new Schema<ILedgerEntry>(
       uppercase: true,
     },
 
+    operationKey: { type: String, unique: true, sparse: true },
     description: {
       type: String,
       required: true,

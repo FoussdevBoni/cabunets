@@ -4,6 +4,9 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IVendeur extends Document {
   _id: mongoose.Types.ObjectId;
 
+  isApproved: boolean;
+  approvedAt?: Date;
+  approvedBy?: mongoose.Types.ObjectId;
   whatsappNumber: string;
   advantage: string;
 
@@ -37,6 +40,9 @@ const VendeurSchema = new Schema<IVendeur>(
       required: true,
     },
 
+    isApproved: { type: Boolean, default: false },
+    approvedAt: Date,
+    approvedBy: { type: Schema.Types.ObjectId, ref: "User" },
     whatsappNumber: {
       type: String,
       required: true,

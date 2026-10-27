@@ -1,3 +1,4 @@
+import { affiliateSettingsService } from "./affiliateSettingsService";
 import { affiliateTransaction } from "./affiliateTransaction";
 import { encryptDestination, decryptDestination } from "../../utils/paymentDestination";
 // src/services/metier/rewardWithdrawalService.ts
@@ -37,7 +38,7 @@ export const rewardWithdrawalService = {
       throw new ValidationError("Montant invalide.");
     }
     const amount = money.round(params.amount);
-    const minimum = Number(process.env.AFFILIATE_MIN_WITHDRAWAL_CDF ?? 5000);
+    const { minWithdrawalAmount: minimum } = await affiliateSettingsService.get();
     if (!Number.isFinite(minimum) || minimum <= 0) throw new ValidationError("Seuil de retrait mal configuré.");
     if (amount < minimum) throw new ValidationError("Le minimum de retrait est de " + minimum + " CDF.");
     if (!["airtel_money", "vodacom_mpesa", "orange_money", "africell_money", "manuel"].includes(channel)) {
