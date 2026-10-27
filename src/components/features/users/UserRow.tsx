@@ -1,5 +1,5 @@
 // components/users/UserRow.tsx
-import { ExternalLink, Trash2, UserCog, Users, UserIcon } from "lucide-react";
+import { UserCog, Users, UserIcon } from "lucide-react";
 import TableRow from "../../ui/TableRow";
 import { User, UserRole } from "../../../utils/database";
 
@@ -18,9 +18,7 @@ export default function UserRow({
   onSelect,
   isSelected = false,
   selectable = false,
-  onDelete,
 }: UserRowProps) {
-  const currentId = user.id || user._id || "";
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {

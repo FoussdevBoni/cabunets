@@ -1,5 +1,5 @@
 // pages/LandingPage.tsx
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Loader2,
   CheckCircle,
@@ -14,7 +14,7 @@ import PublicLayout from "../../layouts/public/PublicLayout";
 
 export default function LandingPage() {
   const { data: vendeurs, loading } = useVendeurs({});
-  const { user } = useAuth();
+  useAuth();
   const navigate = useNavigate();
 
   if (loading) {

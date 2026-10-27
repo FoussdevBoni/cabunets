@@ -1,4 +1,4 @@
-import { Client, User } from "../utils/database";
+import { User } from "../utils/database";
 import { BackendData } from "./core/BackendData";
 export interface LinkedEntity {
   type: 'vendeur' | 'order' | 'offer' | 'client';

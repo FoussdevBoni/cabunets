@@ -1,5 +1,5 @@
 // components/features/clients/ClientRow.tsx
-import { MapPin, Phone, UserIcon } from "lucide-react";
+import { MapPin, Phone } from "lucide-react";
 import TableRow from "../../ui/TableRow";
 import { User } from "../../../utils/database";
 
@@ -18,7 +18,6 @@ export default function ClientRow({
   onSelect,
   isSelected = false,
   selectable = false,
-  onDelete,
 }: ClientRowProps) {
   const profile = user.profile as any;
 

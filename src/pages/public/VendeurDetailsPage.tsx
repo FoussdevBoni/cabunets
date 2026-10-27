@@ -4,16 +4,12 @@ import { useVendeur } from "../../hooks/vendeurs/useVendeur"
 import useOffres from "../../hooks/offres/useOffres"
 import { OffresTable } from "../../components/features/offres/OffresTable"
 import {
-  Mail,
   Shield,
   ChevronLeft,
-  Phone,
   ChevronLeft as LeftIcon,
   ChevronRight as RightIcon,
   User,
-  ArrowRight,
   Globe,
-  DollarSign,
   ChevronDown,
   ChevronUp,
   TimerIcon

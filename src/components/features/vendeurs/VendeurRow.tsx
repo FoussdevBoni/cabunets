@@ -1,5 +1,5 @@
 // components/vendeurs/VendeurRow.tsx
-import { Clock, ExternalLink, Trash2 } from "lucide-react";
+import { Clock,  } from "lucide-react";
 import TableRow from "../../ui/TableRow";
 import { Vendeur } from "../../../utils/database";
 
@@ -18,9 +18,7 @@ export default function VendeurRow({
   onSelect,
   isSelected = false,
   selectable = false,
-  onDelete,
 }: VendeurRowProps) {
-  const currentId = vendeur.id || vendeur._id || "";
 
   const countActiveNetworks = () => {
     if (!vendeur.networks) return 0;

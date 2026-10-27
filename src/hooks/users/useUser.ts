@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import useUsers, { userService } from './useUsers';
+import useUsers from './useUsers';
+import { userService } from '../../services/userService';
 import { User } from '../../utils/database';
 
 interface Props {
@@ -16,7 +17,7 @@ const useUser = ({ userId }: Props) => {
     const getUser = async () => {
         setLoading(true);
         try {
-            const userData = await userService.getById(userId);
+            const userData = await userService.getById(userId, localStorage.getItem("token") ?? undefined);
             setUser(userData);
             setError(null);
         } catch (err: any) {

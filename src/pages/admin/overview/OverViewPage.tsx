@@ -1,9 +1,9 @@
 // pages/AdminOverviewPage.tsx
 import { useNavigate } from "react-router-dom";
 import {
-  Package, Users, DollarSign, TrendingUp, TrendingDown, XCircle,
-  Clock, CheckCircle, Truck, UserIcon, UserCog, Crown, Signal,
-  Calendar, UserPlus, ArrowRight, Minus,
+  Package, Users, DollarSign, XCircle,
+  UserIcon, UserCog, Crown, Signal,
+  UserPlus, ArrowRight,
 } from "lucide-react";
 import { useAdminOverview } from "../../../hooks/stats/useOverviewStats";
 
@@ -39,11 +39,6 @@ export default function AdminOverviewPage() {
   } = data;
 
   // Helper : "phrase simple" pour une variation
-  const tellVariation = (value: number, unit = "FCFA", vs = "hier") => {
-    if (value === 0) return { text: `Comme ${vs}`, icon: Minus, color: "text-gray-500" };
-    if (value > 0) return { text: `+${Math.round(value)}% par rapport à ${vs}`, icon: TrendingUp, color: "text-green-600" };
-    return { text: `${Math.round(value)}% par rapport à ${vs}`, icon: TrendingDown, color: "text-red-600" };
-  };
 
   // Helper : décrire le revenu du jour en phrase
   const describeTodayRevenue = () => {

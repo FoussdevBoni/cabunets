@@ -18,7 +18,7 @@ import {
   Moon
 } from "lucide-react"
 import { authService } from "../../services/authService"
-import { User, Vendeur } from "../../utils/database"
+import { Vendeur } from "../../utils/database"
 import { useAuth } from "../../hooks/auth/useAuth"
 import useToken from "../../hooks/auth/useToken"
 

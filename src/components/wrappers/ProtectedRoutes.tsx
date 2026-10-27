@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { ReactNode } from 'react';
 import Loader from '../ui/Loader';
 import { useAuth } from '../../hooks/auth/useAuth';
-import {  User, Vendeur } from '../../utils/database';
+import {  User } from '../../utils/database';
 
 type ProtectedRouteProps = {
   children: ReactNode;

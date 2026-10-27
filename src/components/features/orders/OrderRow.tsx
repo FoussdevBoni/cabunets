@@ -1,7 +1,7 @@
 // components/orders/OrderRow.tsx
 import { formatDate } from "../../../functions/formatDate";
 ;
-import { MessageCircle, Check, Clock, ExternalLink, RefreshCw } from "lucide-react";
+import { MessageCircle, Check, Clock,  } from "lucide-react";
 import { Order } from "../../../utils/database";
 import TableRow from "../../ui/TableRow";
 
@@ -21,14 +21,7 @@ export default function OrderRow({
   onSelect,
   isSelected = false,
   selectable = false,
-  onTraitOrder,
-  processingIds = {},
 }: OrderRowProps) {
-  const currentId = order.id || order._id || "";
-  const isProcessing = processingIds[currentId] || false;
-  const isPending = order.status?.toUpperCase() !== "COMPLETED" && 
-                   order.status?.toUpperCase() !== "FAILED" && 
-                   order.status?.toUpperCase() !== "DELIVERED";
 
   const getStatusColor = (status?: Order["status"]) => {
     const normalized = status?.toUpperCase();

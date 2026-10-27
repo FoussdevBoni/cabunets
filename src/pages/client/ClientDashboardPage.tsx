@@ -1,6 +1,5 @@
 import { useAuth } from "../../hooks/auth/useAuth"
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
 import { 
   CheckCircle,
   Clock,
@@ -21,7 +20,6 @@ interface OrderStats {
 
 export default function ClientOverviewPage() {
   const { user, loading: userLoading } = useAuth()
-  const navigate = useNavigate()
   const [orderStats, setOrderStats] = useState<OrderStats>({
     pending: 0,
     completed: 0,

@@ -1,7 +1,7 @@
 // pages/NotificationsPage.tsx
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X, Plus, Eye, Edit, Send } from "lucide-react";
+import { Search, X, Plus, Edit, Send } from "lucide-react";
 import PageLitLayout from "../../../layouts/PageListLayout";
 import DeleteConfirmationModal from "../../../components/ui/DeleteConfirmationModal";
 import MenuModal, { Menu } from "../../../components/ui/MenuModal";

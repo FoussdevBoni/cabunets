@@ -16,10 +16,9 @@ import {
   Camera
 } from "lucide-react";
 import {useUser} from "../../../hooks/users/useUser";
-import useToken from "../../../hooks/auth/useToken";
 import { alertSuccess, alertError } from "../../../helpers/alertError";
 import DeleteConfirmationModal from "../../../components/ui/DeleteConfirmationModal";
-import { userService } from "../../../hooks/users/useUsers";
+import { userService } from "../../../services/userService";
 
 // Définir le type du profil
 interface ProfileVendeur {
@@ -52,7 +51,7 @@ export default function UserDetailsPage() {
     if (!user) return;
     setIsDeleting(true);
     try {
-      const response = await  userService.delete(user.id || user._id || "")
+      const response = await  userService.delete(user.id || user._id || "", localStorage.getItem("token") ?? undefined)
 
       if (response) {
         alertSuccess("Utilisateur supprimé avec succès");

@@ -33,7 +33,7 @@ export default function VendeurDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { token } = useToken();
-  const { vendeur, vendeurLoading: loading, getVendeur: refresh } = useVendeur({ vendeurId: id! });
+  const { vendeur, vendeurLoading: loading } = useVendeur({ vendeurId: id! });
   const { data: orders, loading: ordersLoading, refresh: refreshOrders } = useOrders({ filters: { vendeurId: id! } });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

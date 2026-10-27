@@ -1,4 +1,4 @@
-import { uploadFileService } from "../services/uploadFileService";
+import { uploadService } from "../services/uploadFileService";
 
 export const uploadFiles = async (initialImages: string[] , imagesFiles: File[])=>{
    let finalImages = initialImages || [];
@@ -8,8 +8,10 @@ export const uploadFiles = async (initialImages: string[] , imagesFiles: File[])
           const uploadedUrls = await Promise.all(
             imagesFiles.map(async (file) => {
               const filename = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
-              const url = await uploadFileService.uploadFile(
+              const url = await uploadService.upload(
                 file,
+                localStorage.getItem("token") ?? undefined,
+                undefined,
                 `images/products/${filename}`
               );
               return url;

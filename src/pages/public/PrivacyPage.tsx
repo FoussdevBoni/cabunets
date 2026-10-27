@@ -5,9 +5,7 @@ import {
   Eye, 
   Database, 
   UserCheck, 
-  FileText,
   CheckCircle,
-  AlertCircle,
   RefreshCw
 } from 'lucide-react';
 import PublicLayout from '../../layouts/public/PublicLayout';

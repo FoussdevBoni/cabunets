@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import useVendeurs, { vendeursService } from './useVendeurs';
-import { User, Vendeur } from '../../utils/database';
+import { Vendeur } from '../../utils/database';
 
 interface Props {
     vendeurId: string

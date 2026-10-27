@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import useToken from '../../../hooks/auth/useToken';
 import { reclamationsService } from '../../../hooks/reclamations/useReclamations';

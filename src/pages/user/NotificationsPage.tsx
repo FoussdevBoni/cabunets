@@ -1,7 +1,7 @@
 // pages/user/NotificationsPage.tsx
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, X } from 'lucide-react';
+import { Bell, CheckCheck } from 'lucide-react';
 import PageLitLayout from '../../layouts/PageListLayout';
 import useNotifications from '../../hooks/notifications/useNotifications';
 import { useAuth } from '../../hooks/auth/useAuth';

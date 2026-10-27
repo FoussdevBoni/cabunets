@@ -1,7 +1,7 @@
 // pages/vendeur/RetraitsPage.tsx
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, X, Eye, Edit } from "lucide-react";
+import { Plus, Search, X, Edit } from "lucide-react";
 import PageLitLayout from "../../../layouts/PageListLayout";
 import DeleteConfirmationModal from "../../../components/ui/DeleteConfirmationModal";
 import MenuModal, { Menu } from "../../../components/ui/MenuModal";

@@ -1,6 +1,6 @@
 // pages/ReclamationsPage.tsx
 import { useState, useMemo } from "react";
-import { Search, X, Eye, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Search, X, Eye, CheckCircle, XCircle, Clock } from "lucide-react";
 import PageLitLayout from "../../../layouts/PageListLayout";
 import DeleteConfirmationModal from "../../../components/ui/DeleteConfirmationModal";
 import MenuModal, { Menu } from "../../../components/ui/MenuModal";

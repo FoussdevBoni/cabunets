@@ -1,5 +1,5 @@
 // pages/admin/WalletsPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import useWallet, { IWalletInfo } from '../../../hooks/wallet/useWallet';
 import {
   Search,

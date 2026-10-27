@@ -1,6 +1,5 @@
 // pages/UpdateNotificationPage.tsx
 import { useParams } from "react-router-dom";
-import PageLitLayout from "../../../layouts/PageListLayout";
 import NotificationForm from "../../../components/features/notifications/NotificationForm";
 import useNotifications from "../../../hooks/notifications/useNotifications";
 import PageLayout from "../../../layouts/PageLayout";

@@ -141,6 +141,7 @@ export default function ProfilePage() {
       }
 
       const updatedData: CurrentUser = {
+        ...user!,
         profile: {
           ...form,
           photoUrls: finalPhotoUrls,

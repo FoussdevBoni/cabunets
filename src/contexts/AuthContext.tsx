@@ -31,7 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate()
-  const {token , saveToken , deleteToken} = useToken();
+  const {token , deleteToken} = useToken();
 
   
   // Récupérer l’user au montage

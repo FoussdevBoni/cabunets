@@ -1,5 +1,5 @@
 // src/hooks/useCategories.ts
-import { User, Vendeur } from '../../utils/database'
+import { Vendeur } from '../../utils/database'
 import { dataService, QueryFilters } from '../../services/dataService'
 import { useData } from '../data/useData'
 

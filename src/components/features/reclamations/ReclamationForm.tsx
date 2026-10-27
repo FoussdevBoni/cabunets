@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import useToken from "../../../hooks/auth/useToken";
 import { useAuth } from "../../../hooks/auth/useAuth";
 import { uploadService } from "../../../services/uploadFileService";
-import { X, Send, Loader2, Upload, FileText, Image } from "lucide-react";
+import { X, Send, Loader2, Image } from "lucide-react";
 import { LinkedEntity, Reclamation } from "../../../types/Reclamation";
 import useOrders from "../../../hooks/orders/useOrders";
 import useOffres from "../../../hooks/offres/useOffres";

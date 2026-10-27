@@ -41,19 +41,7 @@ export default function UserNotificationDetailsPage() {
     }
   };
 
-  const getTypeText = () => {
-    if (notification?.type === "general") return "Générale";
-    if (notification?.type === "private") return "Privée";
-    if (notification?.type === "whatsapp") return "WhatsApp";
-    return "";
-  };
 
-  const getTypeColor = () => {
-    if (notification?.type === "general") return "text-blue-600 bg-blue-50";
-    if (notification?.type === "private") return "text-purple-600 bg-purple-50";
-    if (notification?.type === "whatsapp") return "text-green-600 bg-green-50";
-    return "text-gray-600 bg-gray-50";
-  };
 
   if (loading) {
     return (
