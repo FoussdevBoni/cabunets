@@ -3,6 +3,7 @@
 import {
   LayoutDashboard,
   Users,
+  Store,
   Coins,
   Wallet,
   Settings,
@@ -22,6 +23,7 @@ export const adminNav: NavItem[] = [
   { label: "Affiliés", path: "/admin/affiliates", icon: Users },
   { label: "Commissions", path: "/admin/commissions", icon: Coins },
   { label: "Retraits", path: "/admin/withdrawals", icon: Wallet },
+  { label: "Vendeurs apportés", path: "/admin/sellers", icon: Store },
   { label: "Règles", path: "/admin/rules", icon: Settings },
   { label: "Anomalies", path: "/admin/anomalies", icon: ShieldAlert },
   { label: "Audit", path: "/admin/audit", icon: ScrollText },

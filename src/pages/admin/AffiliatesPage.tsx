@@ -28,7 +28,7 @@ export default function AffiliatesPage() {
   const [verifying, setVerifying] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AffiliateStatus | undefined>();
   const { affiliates, total, page, limit, setPage, loading, refetch } =
-    useAffiliates();
+    useAffiliates({ statut: statusFilter });
   const { activate, suspend, reactivate, loading: actionLoading } =
     useAffiliateActions();
 

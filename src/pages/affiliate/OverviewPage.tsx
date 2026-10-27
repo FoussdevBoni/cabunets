@@ -13,7 +13,7 @@ import { useMyBalance, useMyCommissions } from "../../hooks/commissions/useCommi
 export default function OverviewPage() {
   const { stats, loading: statsLoading } = useMyReferralStats();
   const { balance, loading: balanceLoading } = useMyBalance();
-  const { commissions, loading: commissionsLoading } = useMyCommissions();
+  const { commissions, total: totalCommissions, loading: commissionsLoading } = useMyCommissions();
 
   const loading = statsLoading || balanceLoading;
 
@@ -58,7 +58,7 @@ export default function OverviewPage() {
           />
           <StatCard
             label="Commissions"
-            value={commissions?.length ?? 0}
+            value={totalCommissions}
             hint="Total reçues"
             icon={<Coins size={20} />}
             variant="default"

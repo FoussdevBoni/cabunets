@@ -65,6 +65,7 @@ export const authService = {
   getAuthError(error: any) {
     return (
       error?.response?.data?.message ||
+      (error?.isAxiosError && !error.response ? "Le serveur est inaccessible. Vérifiez la connexion et la disponibilité du backend." : undefined) ||
       (error?.response?.status ? "Impossible de charger votre session (HTTP " + error.response.status + ")." : error?.message) ||
       "Une erreur s'est produite. Veuillez réessayer"
     );

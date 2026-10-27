@@ -1,142 +1,77 @@
-// src/pages/admin/AnomaliesPage.tsx
-
-import { ShieldAlert, AlertTriangle, Users, Coins, TrendingUp } from "lucide-react";
-import { Card, CardHeader } from "../../components/ui/Card";
-import { Badge } from "../../components/ui/Badge";
-
-const detectionRules = [
-  {
-    icon: Users,
-    title: "Auto-parrainage",
-    description:
-      "Un affilié qui tente de parrainer son propre compte (même téléphone, même email).",
-    status: "actif",
-  },
-  {
-    icon: Coins,
-    title: "Doublons de commission",
-    description:
-      "Deux commissions créées pour le même événement source. Bloqué par l'index unique.",
-    status: "actif",
-  },
-  {
-    icon: TrendingUp,
-    title: "Volumes anormaux",
-    description:
-      "Un affilié qui génère un nombre inhabituel de filleuls en peu de temps.",
-    status: "a_venir",
-  },
-  {
-    icon: AlertTriangle,
-    title: "Commandes fictives",
-    description:
-      "Commandes sans livraison réelle ou avec des montants suspects.",
-    status: "a_venir",
-  },
-];
+import { useState } from "react";
+import { Card } from "../../components/ui/Card";
+import { Button } from "../../components/ui/Button";
+import { Input } from "../../components/ui/Input";
+import { Pagination } from "../../components/ui/Pagination";
+import { useAdminResource } from "../../hooks/affiliates/useAdminResource";
+import { AffiliateIssue, PageData } from "../../types/AffiliateAdmin";
+import { affiliateAdminService } from "../../services/affiliateAdminService";
 
 export default function AnomaliesPage() {
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Anomalies</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          Détection et suivi des cas suspects
-        </p>
-      </div>
-
-      {/* Bandeau info */}
-      <Card>
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
-            <ShieldAlert className="text-orange-700" size={20} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">
-              Module en construction
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              La détection automatique des anomalies sera disponible dans une
-              prochaine version. Les règles déjà actives côté backend sont
-              listées ci-dessous.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Règles de détection */}
-      <Card>
-        <CardHeader
-          title="Règles de détection"
-          description="Mécanismes de protection en place"
-        />
-
-        <div className="space-y-3">
-          {detectionRules.map((rule, i) => {
-            const Icon = rule.icon;
-            return (
-              <div
-                key={i}
-                className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
-              >
-                <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center flex-shrink-0 border border-gray-200">
-                  <Icon className="text-gray-600" size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-medium text-gray-900">{rule.title}</p>
-                    <Badge
-                      variant={rule.status === "actif" ? "success" : "warning"}
-                    >
-                      {rule.status === "actif" ? "Actif" : "À venir"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {rule.description}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* Ce qui sera ajouté */}
-      <Card>
-        <CardHeader
-          title="Prochaines étapes"
-          description="Fonctionnalités prévues"
-        />
-
-        <ul className="space-y-2 text-sm text-gray-700">
-          <li className="flex gap-2">
-            <span className="text-primary font-bold">•</span>
-            <span>
-              Page dédiée avec liste des cas suspects détectés automatiquement
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-primary font-bold">•</span>
-            <span>
-              Bouton d'action : "Vérifier" pour confirmer ou infirmer une
-              anomalie
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-primary font-bold">•</span>
-            <span>
-              Historique des actions sur les anomalies (audit)
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-primary font-bold">•</span>
-            <span>
-              Notifications automatiques quand une anomalie est détectée
-            </span>
-          </li>
-        </ul>
-      </Card>
+  const [status, setStatus] = useState("open"); const [page, setPage] = useState(1);
+  const [busy, setBusy] = useState(false); const [message, setMessage] = useState("");
+  const [orderId, setOrderId] = useState(""); const [operation, setOperation] = useState("cancel");
+  const [accountId, setAccountId] = useState("");
+  const [adjustment, setAdjustment] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [adjustmentRef, setAdjustmentRef] = useState("");
+  const [reason, setReason] = useState(""); const [reference, setReference] = useState("");
+  const { data, loading, error, refetch } = useAdminResource<PageData<AffiliateIssue>>("issues", { status, page });
+  async function action(path: string, body: object = {}) {
+    setBusy(true); setMessage("");
+    try { await affiliateAdminService.action(path, body); await refetch(); setMessage("Opération enregistrée."); }
+    catch (failure: any) { setMessage(failure?.response?.data?.message ?? "Opération impossible."); }
+    finally { setBusy(false); }
+  }
+  return <div className="space-y-5">
+    <div><h1 className="text-2xl font-bold">Anomalies et reprises</h1><p className="text-sm text-gray-600">Les signalements demandent un examen humain. Aucun compte n’est bloqué automatiquement.</p></div>
+    <div className="flex flex-wrap gap-2">
+      <select aria-label="État des anomalies" className="rounded-lg border-gray-300" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+        <option value="open">À examiner</option><option value="resolved">Résolues</option><option value="">Toutes</option>
+      </select>
+      <Button variant="outline" loading={busy} onClick={() => action("issues/scan")}>Rechercher les anomalies</Button>
+      <Button loading={busy} onClick={() => action("reconcile")}>Reprendre les commissions</Button>
     </div>
-  );
+    {(message || error) && <p role="status" className="text-sm">{message || error}</p>}
+    {loading ? <p role="status">Chargement…</p> : !data?.items.length ? <Card>Aucune anomalie pour ce filtre.</Card> : data.items.map(item =>
+      <Card key={item._id}><h2 className="font-semibold">{item.category === "negative_balance" ? "Solde négatif" : item.category === "shared_phone" ? "Téléphone partagé" : "Commission à reprendre"}</h2>
+        <p className="text-sm mt-2 break-words">{item.message}</p>
+        <p className="text-xs text-gray-500 mt-2">{new Date(item.updatedAt).toLocaleString("fr-FR")} · {item.status === "open" ? "À examiner" : "Résolue"}{item.orderId ? " · Commande " + item.orderId : ""}</p>
+        {item.resolution && <p className="text-sm mt-2">{item.resolution}</p>}
+        {item.status === "open" && <Button className="mt-3" size="sm" variant="outline" disabled={busy} onClick={() => {
+          const resolution = window.prompt("Indiquez le résultat de votre vérification :");
+          if (resolution?.trim()) void action("issues/" + encodeURIComponent(item._id) + "/resolve", { reason: resolution.trim() });
+        }}>Consigner la résolution</Button>}
+      </Card>)}
+    <Pagination page={page} totalPages={data?.totalPages ?? 0} total={data?.total ?? 0} onPageChange={setPage} />
+    <Card><h2 className="font-semibold mb-2">Annulation et remboursement d’une commande</h2>
+      <p className="text-sm text-gray-600 mb-4">Cette action conserve l’historique et régularise les commissions. Elle ne transfère pas d’argent : un remboursement doit avoir été effectué et référencé au préalable.</p>
+      <form className="space-y-3" onSubmit={event => {
+        event.preventDefault();
+        if (window.confirm("Confirmer l’enregistrement de cette opération et la régularisation des commissions ?"))
+          void action("orders/" + orderId.trim() + "/" + operation, { reason, reference });
+      }}>
+        <Input label="Identifiant de la commande" value={orderId} onChange={e => setOrderId(e.target.value)} required pattern="[a-fA-F0-9]{24}" />
+        <label className="block text-sm">Opération<select className="block rounded-lg border-gray-300 mt-1" value={operation} onChange={e => setOperation(e.target.value)}>
+          <option value="cancel">Annuler une commande non payée</option><option value="refund">Consigner un remboursement effectué</option></select></label>
+        <Input label="Motif" value={reason} onChange={e => setReason(e.target.value)} required />
+        {operation === "refund" && <Input label="Référence du remboursement" value={reference} onChange={e => setReference(e.target.value)} required />}
+        <Button type="submit" variant="danger" loading={busy}>Enregistrer l’opération</Button>
+      </form>
+    </Card>
+    <Card><h2 className="font-semibold mb-2">Consigner une régularisation justifiée</h2>
+      <p className="text-sm text-gray-600 mb-4">À utiliser pour un remboursement reçu de l’affilié ou une correction documentée. Un montant positif crédite le compte, un montant négatif le débite. Aucun transfert d’argent n’est exécuté.</p>
+      <form className="space-y-3" onSubmit={event => {
+        event.preventDefault();
+        if (window.confirm("Confirmer cette correction du registre avec sa référence justificative ?"))
+          void action("adjustments", { affiliateId: accountId.trim(), amount: Number(adjustment), reason: adjustmentReason, reference: adjustmentRef });
+      }}>
+        <Input label="Identifiant de l’affilié" value={accountId} onChange={e => setAccountId(e.target.value)} pattern="[a-fA-F0-9]{24}" required />
+        <Input label="Montant signé en CDF" type="number" step="0.01" value={adjustment} onChange={e => setAdjustment(e.target.value)} required />
+        <Input label="Motif de la régularisation" value={adjustmentReason} onChange={e => setAdjustmentReason(e.target.value)} required />
+        <Input label="Référence justificative unique" value={adjustmentRef} onChange={e => setAdjustmentRef(e.target.value)} maxLength={100} required />
+        <Button type="submit" variant="outline" loading={busy}>Consigner la régularisation</Button>
+      </form>
+    </Card>
+  </div>;
 }

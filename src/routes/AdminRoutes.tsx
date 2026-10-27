@@ -1,3 +1,4 @@
+import SellersPage from "../pages/admin/SellersPage";
 import { Routes, Route } from "react-router-dom";
 import { AdminLayout } from "../layouts/admin/AdminLayout";
 import { RequireAuth } from "../wrappers/RequireAuth";
@@ -19,6 +20,7 @@ export function AdminRoutes() {
           <Route path="affiliates" element={<AdminAffiliatesPage />} />
           <Route path="commissions" element={<AdminCommissionsPage />} />
           <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
+          <Route path="sellers" element={<SellersPage />} />
           <Route path="rules" element={<AdminRulesPage />} />
           <Route path="anomalies" element={<AdminAnomaliesPage />} />
           <Route path="audit" element={<AdminAuditPage />} />

@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { useAdminResource } from "../../hooks/affiliates/useAdminResource";
+import { AdminOverview, PeriodFilter } from "../../types/AffiliateAdmin";
+import { PeriodToolbar, ExportControls } from "../../components/layouts/AdminTools";
 // src/pages/admin/OverviewPage.tsx
 
 import { Users, Coins, Wallet, ShieldAlert } from "lucide-react";
@@ -12,6 +16,8 @@ import { useAdminCommissions } from "../../hooks/commissions/useCommissions";
 import { useAdminWithdrawals } from "../../hooks/reward-withdrawals/useWithdrawals";
 
 export default function OverviewPage() {
+  const [period, setPeriod] = useState<PeriodFilter>({});
+  const { data: metrics, loading: metricsLoading, error: metricsError } = useAdminResource<AdminOverview>("overview", period);
   const { affiliates, total: totalAffiliates, loading: affiliatesLoading } =
     useAffiliates();
   const {
@@ -26,7 +32,7 @@ export default function OverviewPage() {
   } = useAdminWithdrawals();
 
   const loading =
-    affiliatesLoading || commissionsLoading || withdrawalsLoading;
+    affiliatesLoading || commissionsLoading || withdrawalsLoading || metricsLoading;
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("fr-FR").format(amount) + " CDF";
@@ -53,6 +59,9 @@ export default function OverviewPage() {
         </p>
       </div>
 
+      <PeriodToolbar value={period} onChange={setPeriod} />
+      <ExportControls filters={period} />
+      {metricsError && <p role="alert" className="text-red-600">{metricsError}</p>}
       {/* Stats */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -65,28 +74,28 @@ export default function OverviewPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Affiliés actifs"
-            value={activeAffiliates.length}
-            hint={`${totalAffiliates} affilié(s) au total`}
+            value={metrics?.activeAffiliates ?? activeAffiliates.length}
+            hint={`${metrics?.totalAffiliates ?? totalAffiliates} affilié(s) au total`}
             icon={<Users size={20} />}
             variant="primary"
           />
           <StatCard
             label="Commissions en attente"
-            value={pendingCommissions.length}
-            hint={`${totalCommissions} commission(s) au total`}
+            value={metrics?.pendingCommissions ?? pendingCommissions.length}
+            hint={`${metrics?.totalCommissions ?? totalCommissions} commission(s) au total`}
             icon={<Coins size={20} />}
             variant="warning"
           />
           <StatCard
             label="Retraits en attente"
-            value={pendingWithdrawals.length}
-            hint={`${totalWithdrawals} retrait(s) au total`}
+            value={metrics?.pendingWithdrawals ?? pendingWithdrawals.length}
+            hint={`${metrics?.totalWithdrawals ?? totalWithdrawals} retrait(s) au total`}
             icon={<Wallet size={20} />}
             variant="default"
           />
           <StatCard
             label="À traiter"
-            value={pendingCommissions.length + pendingWithdrawals.length}
+            value={(metrics?.pendingCommissions ?? 0) + (metrics?.pendingWithdrawals ?? 0)}
             hint="Commissions + retraits"
             icon={<ShieldAlert size={20} />}
             variant="danger"
@@ -94,6 +103,19 @@ export default function OverviewPage() {
         </div>
       )}
 
+      {metrics && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Clients actifs sur la période" value={metrics.activeClients} hint="Au moins une commande livrée" icon={<Users size={20} />} />
+        <StatCard label="Vendeurs actifs sur la période" value={metrics.activeSellers} hint="Au moins une vente livrée" icon={<Users size={20} />} />
+        <StatCard label="Filleuls attribués (cumul)" value={metrics.referrals} hint={metrics.clients + " clients · " + metrics.sellers + " vendeurs"} icon={<Users size={20} />} />
+        <StatCard label="Anomalies à examiner" value={metrics.openIssues} hint="Contrôle humain nécessaire" icon={<ShieldAlert size={20} />} />
+      </div>}
+      {metrics && <Card><h2 className="font-semibold mb-3">Activité commerciale attribuée sur la période</h2>
+        {!metrics.revenue.length ? <p className="text-sm text-gray-500">Aucune commande livrée sur cette période.</p> : metrics.revenue.map(row =>
+          <p key={row._id} className="text-sm">{new Intl.NumberFormat("fr-FR").format(row.amount)} {row._id} · {row.orders} commandes livrées</p>)}
+        <h3 className="font-medium mt-4 mb-2">Commissions et paiements</h3>
+        {metrics.commissions.map(row => <p className="text-sm" key={row._id.currency + row._id.status}>Commissions {row._id.status} : {new Intl.NumberFormat("fr-FR").format(row.amount)} {row._id.currency}</p>)}
+        {metrics.withdrawals.filter(row => row._id.status === "payee").map(row => <p className="text-sm" key={row._id.currency}>Récompenses payées : {new Intl.NumberFormat("fr-FR").format(row.amount)} {row._id.currency}</p>)}
+      </Card>}
       {/* Actions rapides */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link

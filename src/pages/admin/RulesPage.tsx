@@ -1,5 +1,6 @@
 // src/pages/admin/RulesPage.tsx
 
+import { ProgramSettingsForm } from "../../components/layouts/AdminTools";
 import { useState } from "react";
 import { Settings, Plus, Edit2, Power } from "lucide-react";
 import { Card } from "../../components/ui/Card";
@@ -179,6 +180,7 @@ export default function RulesPage() {
 
   return (
     <div className="space-y-6">
+      <ProgramSettingsForm />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

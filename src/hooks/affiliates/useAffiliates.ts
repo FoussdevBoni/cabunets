@@ -8,7 +8,8 @@ import {
   BecomeAffiliatePayload,
 } from "../../types/Affiliate";
 
-export function useAffiliates() {
+export function useAffiliates(filters: { statut?: AffiliateStatus } = {}) {
+  const filterKey = JSON.stringify(filters);
   const [affiliates, setAffiliates] = useState<AffiliateWithUser[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -17,12 +18,12 @@ export function useAffiliates() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchAffiliates = useCallback(
-    async (filters?: { statut?: AffiliateStatus }) => {
+    async () => {
       setLoading(true);
       setError(null);
       try {
         const result = await affiliateService.list({
-          ...filters,
+          ...JSON.parse(filterKey),
           page,
           limit,
         });
@@ -34,7 +35,7 @@ export function useAffiliates() {
         setLoading(false);
       }
     },
-    [page, limit]
+    [page, limit, filterKey]
   );
 
   useEffect(() => {
