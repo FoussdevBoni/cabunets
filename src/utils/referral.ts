@@ -14,3 +14,9 @@ export function captureReferral(): string | undefined {
   return undefined;
 }
 export function clearReferral() { localStorage.removeItem(KEY); }
+
+export function setReferralCode(value: string) {
+  const code = value.trim().toUpperCase();
+  if (code) localStorage.setItem(KEY, JSON.stringify({ code, at: Date.now() }));
+  else clearReferral();
+}

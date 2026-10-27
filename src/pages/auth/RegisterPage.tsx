@@ -1,3 +1,4 @@
+import { captureReferral, setReferralCode } from "../../utils/referral";
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Store, ShoppingBag, UserIcon, LogOut, ArrowRight } from "lucide-react"
@@ -10,6 +11,7 @@ type TabType = 'acheteur' | 'vendeur'
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const [referral, setReferral] = useState(() => captureReferral() ?? "");
   const [activeTab, setActiveTab] = useState<TabType>('acheteur')
 
   // Si l'utilisateur est déjà connecté
@@ -136,6 +138,12 @@ export default function RegisterPage() {
           )}
         </div>
 
+        <div className="mb-5">
+          <label htmlFor="referral-code" className="block text-sm font-medium mb-2">Code de parrainage (optionnel)</label>
+          <input id="referral-code" className="w-full rounded-lg border-gray-300 uppercase" value={referral} maxLength={20}
+            onChange={event => { const value = event.target.value.toUpperCase(); setReferral(value); setReferralCode(value); }} />
+          <p className="text-xs text-gray-500 mt-1">Vérifiez ce code avant de créer votre compte. Vous pouvez le corriger ou le retirer.</p>
+        </div>
         {/* Formulaire actif */}
         {activeTab === 'acheteur' ? <AcheteurRegisterForm /> : <VendeurRegisterForm />}
       </div>
