@@ -1,3 +1,4 @@
+import { normalizeOrderStatus, getOrderStatusLabel } from "../../utils/orderStatus";
 import { useEffect, useState, useRef, useCallback } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
 import { Loader2, CheckCircle2, XCircle, Smartphone, ArrowRight } from "lucide-react"
@@ -12,7 +13,7 @@ export default function OrderPendingPage() {
 
     const [order, setOrder] = useState<Order | null>(null)
     const [loading, setLoading] = useState(true)
-    const [status, setStatus] = useState<"PENDING" | "COMPLETED" | "FAILED">("PENDING")
+    const [status, setStatus] = useState<Order["status"]>("PENDING")
     const [fetchError, setFetchError] = useState<string | null>(null)
 
     const statusRef = useRef(status)
@@ -33,17 +34,14 @@ export default function OrderPendingPage() {
             setOrder(updatedOrder.order)
             setLoading(false)
 
-            const currentStatus = updatedOrder.status?.toUpperCase()
-
-            if (currentStatus === "COMPLETED") {
-                setStatus("COMPLETED")
-            } else if (currentStatus === "FAILED") {
-                setStatus("FAILED")
-            } else {
-                setStatus("PENDING")
-            }
+            const currentStatus = normalizeOrderStatus(updatedOrder.order?.status ?? updatedOrder.status)
+            if (!currentStatus) throw new Error("Statut de commande inconnu")
+            setFetchError(null)
+            setStatus(currentStatus)
         } catch (error) {
             console.error("Erreur synchro Cabupay:", error)
+            setFetchError("La vérification du paiement est indisponible. Ne relancez pas le paiement ; consultez à nouveau cette commande.")
+            setLoading(false)
         }
     }, [orderId])
 
@@ -148,17 +146,17 @@ export default function OrderPendingPage() {
                 )}
 
                 {/* COMPLETED */}
-                {status === "COMPLETED" && (
+                {(status === "COMPLETED" || status === "DELIVERED") && (
                     <div>
                         <div className="h-20 w-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                             <CheckCircle2 className="h-10 w-10 text-green-600" />
                         </div>
 
                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                            Paiement confirmé !
+                            {status === "DELIVERED" ? "Commande livrée" : "Paiement confirmé !"}
                         </h2>
                         <p className="text-gray-600 text-sm mb-6">
-                            Vos unités <b>{order?.units} {order?.network}</b> ont été créditées sur le numéro <b>{order?.phoneNumber}</b>.
+                            {status === "DELIVERED" ? <>La livraison de vos unités sur le numéro <b>{order?.phoneNumber}</b> a été confirmée.</> : <>Votre paiement est confirmé. Le vendeur doit maintenant livrer vos unités sur le numéro <b>{order?.phoneNumber}</b>.</>}
                         </p>
 
                         <button
@@ -170,6 +168,8 @@ export default function OrderPendingPage() {
                         </button>
                     </div>
                 )}
+
+                {(status === "CANCELLED" || status === "REFUNDED") && <div><XCircle className="h-12 w-12 text-gray-500 mx-auto mb-4" /><h2 className="text-2xl font-bold mb-3">Commande {getOrderStatusLabel(status).toLowerCase()}</h2><p className="text-gray-600 mb-6">{order?.reversalReason || "Cette commande est clôturée."}</p><button onClick={() => navigate("/")} className="w-full bg-gray-900 text-white py-3 rounded-lg">Retour à l’accueil</button></div>}
 
                 {/* FAILED */}
                 {status === "FAILED" && (

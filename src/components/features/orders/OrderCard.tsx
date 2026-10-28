@@ -1,3 +1,4 @@
+import { getOrderStatusLabel as getStatusText, getOrderStatusColor as getStatusColor } from "../../../utils/orderStatus";
 // components/orders/OrderCard.tsx
 import { Eye, RefreshCw, ExternalLink, MessageCircle, Check, Clock } from "lucide-react"
 import { Order } from "../../../utils/database"
@@ -21,21 +22,7 @@ export function OrderCard({
 }: OrderCardProps) {
   const currentId = order.id || order._id || ""
 
-  const getStatusColor = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "bg-indigo-100 text-indigo-800"
-    if (normalized === "DELIVERED") return "bg-green-100 text-green-800"
-    if (normalized === "FAILED") return "bg-red-100 text-red-800"
-    return "bg-yellow-100 text-yellow-800"
-  }
 
-  const getStatusText = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "Payée"
-    if (normalized === "DELIVERED") return "Livrée"
-    if (normalized === "FAILED") return "Échouée"
-    return "En attente"
-  }
 
   const getWhatsAppStatus = (order: Order) => {
     if (order.whatsappSent) {
@@ -127,7 +114,7 @@ export function OrderCard({
           </a>
         )}
 
-        {isPending && (
+        {isPending && order.status === "PENDING" && (
           <button
             onClick={() => onTraitOrder(currentId)}
             disabled={isProcessing}

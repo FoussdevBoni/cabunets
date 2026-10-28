@@ -118,7 +118,10 @@ export interface Order {
   depositId?: string;             // Reference unique du paiement Cabupay
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
-  status: "PENDING" | "COMPLETED" | "FAILED";
+  status: import("./orderStatus").OrderStatus;
+  reversalReason?: string;
+  reversalReference?: string;
+  reversedAt?: Date;
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   whatsappSent?: boolean;
   whatsappSentAt?: Date;

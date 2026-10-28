@@ -14,6 +14,7 @@ import { alertError, alertSuccess } from "../../helpers/alertError"
 import { formatToRDCPhone } from "../../utils/formatRDCPhone"
 import { useAuth } from "../../hooks/auth/useAuth"
 import { orderService } from "../../services/orderService"
+import useToken from "../../hooks/auth/useToken"
 
 
 
@@ -25,6 +26,7 @@ const providersRDC = [
 
 export default function CheckoutPage() {
     const {user} = useAuth()
+    const { token } = useToken()
 
     console.log("userId" , user?.id)
     const [searchParams] = useSearchParams()
@@ -94,6 +96,10 @@ export default function CheckoutPage() {
     }
 
     const confirmOrder = async () => {
+        if (user && !token) {
+            alertError("Votre session a expiré. Reconnectez-vous avant de commander.")
+            return
+        }
         setSubmitting(true)
 
         try {
@@ -117,7 +123,7 @@ export default function CheckoutPage() {
                 status: "PENDING"
             }
 
-            const data: any = await orderService.create(newOrder as Order)
+            const data: any = await orderService.create(newOrder as Order, token)
 
             if (data.success) {
                 alertSuccess("Commande initiée avec succès !")

@@ -1,3 +1,4 @@
+import { getOrderStatusLabel as getStatusText, getOrderStatusColor as getStatusColor } from "../../../utils/orderStatus";
 // components/orders/OrderRow.tsx
 import { formatDate } from "../../../functions/formatDate";
 ;
@@ -23,21 +24,7 @@ export default function OrderRow({
   selectable = false,
 }: OrderRowProps) {
 
-  const getStatusColor = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase();
-    if (normalized === "COMPLETED") return "bg-indigo-100 text-indigo-800";
-    if (normalized === "DELIVERED") return "bg-green-100 text-green-800";
-    if (normalized === "FAILED") return "bg-red-100 text-red-800";
-    return "bg-yellow-100 text-yellow-800";
-  };
 
-  const getStatusText = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase();
-    if (normalized === "COMPLETED") return "Payée";
-    if (normalized === "DELIVERED") return "Livrée";
-    if (normalized === "FAILED") return "Échouée";
-    return "En attente";
-  };
 
   const getWhatsAppStatus = () => {
     if (order.whatsappSent) {

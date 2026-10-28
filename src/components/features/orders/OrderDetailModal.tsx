@@ -1,3 +1,4 @@
+import { getOrderStatusLabel as getStatusText, getOrderStatusColor as getStatusColor, canProcessOrder } from "../../../utils/orderStatus";
 // components/orders/OrderDetailModal.tsx
 import { X, Copy, Check, AlertCircle, RefreshCw, ExternalLink, MessageCircle, Clock } from "lucide-react"
 
@@ -21,21 +22,7 @@ export function OrderDetailModal({ order, isProcessing, onClose, onTraitOrder }:
     setTimeout(() => setCopiedField(null), 2000)
   }
 
-  const getStatusColor = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "bg-indigo-100 text-indigo-800"
-    if (normalized === "DELIVERED") return "bg-green-100 text-green-800"
-    if (normalized === "FAILED") return "bg-red-100 text-red-800"
-    return "bg-yellow-100 text-yellow-800"
-  }
 
-  const getStatusText = (status?: Order["status"]) => {
-    const normalized = status?.toUpperCase()
-    if (normalized === "COMPLETED") return "Payée"
-    if (normalized === "DELIVERED") return "Livrée"
-    if (normalized === "FAILED") return "Échouée"
-    return "En attente"
-  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 md:p-4 z-50">
@@ -74,9 +61,7 @@ export function OrderDetailModal({ order, isProcessing, onClose, onTraitOrder }:
               </span>
             </div>
             
-            {order.status?.toUpperCase() !== "COMPLETED" && 
-             order.status?.toUpperCase() !== "FAILED" && 
-             order.status?.toUpperCase() !== "DELIVERED" ? (
+            {canProcessOrder(order.status) ? (
               <button
                 onClick={() => onTraitOrder(order.id || order._id || "")}
                 disabled={isProcessing}

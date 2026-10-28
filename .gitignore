@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Configuration locale ; aucun secret dans Git
+.env
+.env.*
+!.env.example

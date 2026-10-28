@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "generate-pwa-assets": "pwa-assets-generator --preset minimal public/logo.png",
     "typecheck": "tsc -p tsconfig.app.json --noEmit --incremental false",
-    "test": "node --test tests/referral.test.cjs"
+    "test": "node --test tests/referral.test.cjs tests/order-status.test.cjs",
+    "test:compatibility": "node --test tests/backend-compatibility.integration.cjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^4.24.1",

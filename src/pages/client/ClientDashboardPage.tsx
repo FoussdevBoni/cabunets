@@ -50,7 +50,7 @@ export default function ClientOverviewPage() {
         const stats: OrderStats = {
           pending: orders.filter(o => {
             const st = o.status?.toUpperCase()
-            return st !== "COMPLETED" && st !== "FAILED" && st !== "DELIVERED"
+            return st === "PENDING"
           }).length,
           completed: completed.length,
           failed: failed.length,

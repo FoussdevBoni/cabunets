@@ -1,3 +1,6 @@
+import { API_URL } from "../../../utils/api";
+import { canProcessOrder, canCancelOrder } from "../../../utils/orderStatus";
+import { orderService } from "../../../services/orderService";
 // pages/VendeurDetailsPage.tsx
 import { useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -115,7 +118,7 @@ export default function VendeurDetailsPage() {
     if (!vendeur) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/vendeurs/${id}`, {
+      const response = await fetch(`${API_URL}/vendeurs/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -136,10 +139,7 @@ export default function VendeurDetailsPage() {
     if (!orderId || processingIds[orderId]) return;
     setProcessingIds(prev => ({ ...prev, [orderId]: true }));
     try {
-      const response = await fetch(`/api/orders/traite-order/${orderId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await orderService.traitOrder(token, orderId);
       if (data.status === 'COMPLETED') {
         alertSuccess("Commande traitée avec succès");
       }
@@ -159,10 +159,7 @@ export default function VendeurDetailsPage() {
     if (sendingWhatsApp) return;
     setSendingWhatsApp(true);
     try {
-      const response = await fetch(`/api/orders/send-pending-whatsapp`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await orderService.sendPendingWhatsApp(token);
       alertSuccess(`${data.sent} messages envoyés, ${data.failed} échoués`);
       refreshOrders();
     } catch (error) {
@@ -174,39 +171,46 @@ export default function VendeurDetailsPage() {
   };
 
   const handleDeleteOrder = async () => {
-    if (!orderToDelete) return;
+    if (!orderToDelete || isDeleting) return;
+    if (!canCancelOrder(orderToDelete.status)) {
+      alertError("Cette commande ne peut plus être annulée. Actualisez la liste.");
+      return;
+    }
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/orders/${orderToDelete.id || orderToDelete._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setOrderToDelete(null);
-        alertSuccess("Commande supprimée");
-        refreshOrders();
-      }
-    } catch (error) {
+      const id = orderToDelete.id || orderToDelete._id || "";
+      await orderService.delete(id, token);
+      setOrderToDelete(null);
+      alertSuccess("Commande annulée ; historique conservé");
+      await refreshOrders();
+    } catch (error: any) {
       console.error(error);
-      alertError("Erreur lors de la suppression");
+      alertError(error?.response?.data?.error || error?.response?.data?.message || "Annulation impossible. Actualisez la commande.");
     } finally {
       setIsDeleting(false);
     }
   };
 
   const handleDeleteManyOrders = async () => {
-    if (!itemsToDelete || itemsToDelete.length === 0) return;
+    if (!itemsToDelete || itemsToDelete.length === 0 || isDeleting) return;
+    if (itemsToDelete.some(id => !orders.some(order => (order.id || order._id) === id && canCancelOrder(order.status)))) {
+      alertError("Sélectionnez uniquement des commandes non payées à annuler.");
+      return;
+    }
+    setIsDeleting(true);
     try {
-      const promises = itemsToDelete.map(id =>
-        fetch(`/api/orders/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-      );
-      await Promise.all(promises);
+      const results = await Promise.allSettled(itemsToDelete.map((id) => orderService.delete(id, token)));
+      const success = results.filter(result => result.status === "fulfilled").length;
+      const failed = results.length - success;
       setItemsToDelete(null);
-      alertSuccess(`${itemsToDelete.length} commandes supprimées`);
-      refreshOrders();
+      if (failed) alertError(success + " commande(s) annulée(s), " + failed + " non annulée(s). Liste actualisée.");
+      else alertSuccess(success + " commande(s) annulée(s) ; historique conservé.");
     } catch (error) {
       console.error(error);
-      alertError("Erreur lors de la suppression multiple");
+      alertError("Annulation multiple impossible.");
+    } finally {
+      setIsDeleting(false);
+      await refreshOrders();
     }
   };
 
@@ -220,9 +224,7 @@ export default function VendeurDetailsPage() {
 
   const getActionsMenu = (order: Order): Menu[] => {
     const currentId = order.id || order._id || "";
-    const isPending = order.status?.toUpperCase() !== "COMPLETED" && 
-                     order.status?.toUpperCase() !== "FAILED" && 
-                     order.status?.toUpperCase() !== "DELIVERED";
+    const isPending = canProcessOrder(order.status);
 
     const actions: Menu[] = [];
 
@@ -242,15 +244,14 @@ export default function VendeurDetailsPage() {
       });
     }
 
-    actions.push({
-      label: "Supprimer",
+    if (canCancelOrder(order.status)) actions.push({
+      label: "Annuler la commande",
       icon: X,
       onClick: () => setOrderToDelete(order),
     });
 
     return actions;
   };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -575,6 +576,8 @@ export default function VendeurDetailsPage() {
                     <option value="COMPLETED">Payée</option>
                     <option value="DELIVERED">Livrée</option>
                     <option value="FAILED">Échouée</option>
+                      <option value="CANCELLED">Annulée</option>
+                      <option value="REFUNDED">Remboursée</option>
                   </select>
                 </div>
               </div>
@@ -605,7 +608,7 @@ export default function VendeurDetailsPage() {
                     selectable={false}
                     selectActions={[
                       {
-                        label: "Supprimer",
+                        label: "Annuler les commandes",
                         onClick: (selected) => setItemsToDelete(selected.map((o) => o.id || o._id || "")),
                         className: "bg-red-600 text-white",
                       },
@@ -678,9 +681,10 @@ export default function VendeurDetailsPage() {
         isOpen={!!orderToDelete}
         onClose={() => setOrderToDelete(null)}
         onConfirm={handleDeleteOrder}
-        title="Supprimer la commande"
-        message={`Supprimer la commande ?`}
-        confirmText={isDeleting ? "Suppression..." : "Supprimer"}
+        title="Annuler la commande non payée"
+        message="Annuler cette commande non payée ? Son historique sera conservé."
+        confirmText={isDeleting ? "Annulation..." : "Confirmer l’annulation"}
+        cancelText="Conserver la commande"
       />
 
       {/* Modal suppression multiple */}
@@ -688,8 +692,10 @@ export default function VendeurDetailsPage() {
         isOpen={!!itemsToDelete && itemsToDelete.length > 0}
         onClose={() => setItemsToDelete(null)}
         onConfirm={handleDeleteManyOrders}
-        title="Suppression multiple"
-        message={`Supprimer ${itemsToDelete?.length} commandes ?`}
+        confirmText={isDeleting ? "Annulation..." : "Confirmer les annulations"}
+        cancelText="Conserver les commandes"
+        title="Annuler les commandes non payées"
+        message={`Annuler ${itemsToDelete?.length} commandes non payées ? Leur historique sera conservé.`}
       />
     </div>
   );

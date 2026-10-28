@@ -1,3 +1,4 @@
+import { getOrderStatusLabel as getStatusLabel, getOrderStatusColor as getStatusColor, canProcessOrder, canDeliverOrder } from "../../../utils/orderStatus";
 // pages/vendeur/OrdersPage.tsx
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "../../../hooks/auth/useAuth";
@@ -60,29 +61,16 @@ export default function OrdersPage() {
   } = useOrders({ filters, statsFilters });
 
   // Helpers de statut
-  const getStatusLabel = (status?: string) => {
-    const n = status?.toUpperCase();
-    if (n === "DELIVERED") return "Livrée";
-    if (n === "COMPLETED") return "Payé";
-    if (n === "FAILED") return "Échouée";
-    return "En attente";
-  };
 
   const getStatusIcon = (status?: string) => {
     const n = status?.toUpperCase();
+        if (status?.toUpperCase() === "CANCELLED" || status?.toUpperCase() === "REFUNDED") return <XCircle className="h-4 w-4 text-gray-500" />;
     if (n === "DELIVERED") return <CheckCircle className="h-4 w-4 text-green-600" />;
     if (n === "COMPLETED") return <CheckCircle className="h-4 w-4 text-blue-500" />;
     if (n === "FAILED") return <XCircle className="h-4 w-4 text-red-500" />;
     return <Clock className="h-4 w-4 text-yellow-500" />;
   };
 
-  const getStatusColor = (status?: string) => {
-    const n = status?.toUpperCase();
-    if (n === "DELIVERED") return "bg-green-100 text-green-800";
-    if (n === "COMPLETED") return "bg-blue-100 text-blue-800";
-    if (n === "FAILED") return "bg-red-100 text-red-800";
-    return "bg-yellow-100 text-yellow-800";
-  };
 
   const formatDate = (date?: Date | string) => {
     if (!date) return "-";
@@ -161,6 +149,8 @@ export default function OrdersPage() {
               { id: "COMPLETED", label: "Payées" },
               { id: "DELIVERED", label: "Livrées" },
               { id: "FAILED", label: "Échouées" },
+              { id: "CANCELLED", label: "Annulées" },
+              { id: "REFUNDED", label: "Remboursées" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -210,12 +200,8 @@ export default function OrdersPage() {
             <div className="space-y-3">
               {orders.map((order) => {
                 const isDelivered = order.status?.toUpperCase() === "DELIVERED";
-                const isCompleted = order.status?.toUpperCase() === "COMPLETED";
-                const isPending =
-                  !isCompleted &&
-                  !isDelivered &&
-                  order.status?.toUpperCase() !== "FAILED";
-                const canDeliver = isCompleted && !isDelivered;
+                const isPending = canProcessOrder(order.status);
+                const canDeliver = canDeliverOrder(order.status);
 
                 return (
                   <div

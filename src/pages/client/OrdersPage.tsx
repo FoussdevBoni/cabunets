@@ -1,3 +1,4 @@
+import { getOrderStatusLabel as getStatusLabel, getOrderStatusColor as getStatusColor } from "../../utils/orderStatus";
 import { useState } from "react"
 import { useAuth } from "../../hooks/auth/useAuth"
 import useOrders from "../../hooks/orders/useOrders"
@@ -32,7 +33,9 @@ export default function ClientOrdersPage() {
         const filterStatus = statusFilter.toUpperCase()
 
         let matchesStatus = false
-        if (filterStatus === "ALL") {
+        if (filterStatus === "CANCELLED" || filterStatus === "REFUNDED") {
+            matchesStatus = currentStatus === filterStatus
+        } else if (filterStatus === "ALL") {
             matchesStatus = true
         } else if (filterStatus === "FAILED") {
             matchesStatus = currentStatus === "FAILED"
@@ -41,7 +44,7 @@ export default function ClientOrdersPage() {
         } else if (filterStatus === "DELIVERED") {
             matchesStatus = currentStatus === "DELIVERED"
         } else if (filterStatus === "PENDING") {
-            matchesStatus = currentStatus !== "COMPLETED" && currentStatus !== "FAILED" && currentStatus !== "DELIVERED"
+            matchesStatus = currentStatus === "PENDING"
         }
 
         const matchesSearch =
@@ -53,29 +56,16 @@ export default function ClientOrdersPage() {
     }) || []
 
     // Helpers pour les statuts
-    const getStatusLabel = (status?: string) => {
-        const normalized = status?.toUpperCase()
-        if (normalized === "DELIVERED") return "Livrée"
-        if (normalized === "COMPLETED") return "Payée"
-        if (normalized === "FAILED") return "Échouée"
-        return "En attente"
-    }
 
     const getStatusIcon = (status?: string) => {
         const normalized = status?.toUpperCase()
+        if (status?.toUpperCase() === "CANCELLED" || status?.toUpperCase() === "REFUNDED") return <XCircle className="h-4 w-4 text-gray-500" />;
         if (normalized === "DELIVERED") return <CheckCircle className="h-4 w-4 text-green-600" />
         if (normalized === "COMPLETED") return <CheckCircle className="h-4 w-4 text-indigo-500" />
         if (normalized === "FAILED") return <XCircle className="h-4 w-4 text-red-500" />
         return <Clock className="h-4 w-4 text-yellow-500" />
     }
 
-    const getStatusColor = (status?: string) => {
-        const normalized = status?.toUpperCase()
-        if (normalized === "DELIVERED") return "bg-green-100 text-green-800"
-        if (normalized === "COMPLETED") return "bg-indigo-100 text-indigo-800"
-        if (normalized === "FAILED") return "bg-red-100 text-red-800"
-        return "bg-yellow-100 text-yellow-800"
-    }
 
     if (loading) {
         return (
@@ -116,7 +106,9 @@ export default function ClientOrdersPage() {
                         { id: "PENDING", label: "En attente" },
                         { id: "COMPLETED", label: "Payées" },
                         { id: "DELIVERED", label: "Livrées" },
-                        { id: "FAILED", label: "Échouées" }
+                        { id: "FAILED", label: "Échouées" },
+                        { id: "CANCELLED", label: "Annulées" },
+                        { id: "REFUNDED", label: "Remboursées" }
                     ].map((tab) => (
                         <button
                             key={tab.id}

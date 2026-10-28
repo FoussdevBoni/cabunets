@@ -1,3 +1,4 @@
+import { canProcessOrder, canCancelOrder } from "../../../utils/orderStatus";
 // pages/OrdersPage.tsx
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -105,32 +106,46 @@ export default function OrdersPage() {
   };
 
   const handleDelete = async () => {
-    if (!orderToDelete) return;
+    if (!orderToDelete || isDeleting) return;
+    if (!canCancelOrder(orderToDelete.status)) {
+      alertError("Cette commande ne peut plus être annulée. Actualisez la liste.");
+      return;
+    }
     setIsDeleting(true);
     try {
       const id = orderToDelete.id || orderToDelete._id || "";
       await orderService.delete(id, token);
       setOrderToDelete(null);
-      alertSuccess("Commande supprimée");
+      alertSuccess("Commande annulée ; historique conservé");
       await refresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alertError("Erreur lors de la suppression");
+      alertError(error?.response?.data?.error || error?.response?.data?.message || "Annulation impossible. Actualisez la commande.");
     } finally {
       setIsDeleting(false);
     }
   };
 
   const handleDeleteMany = async () => {
-    if (!itemsToDelete || itemsToDelete.length === 0) return;
+    if (!itemsToDelete || itemsToDelete.length === 0 || isDeleting) return;
+    if (itemsToDelete.some(id => !orders.some(order => (order.id || order._id) === id && canCancelOrder(order.status)))) {
+      alertError("Sélectionnez uniquement des commandes non payées à annuler.");
+      return;
+    }
+    setIsDeleting(true);
     try {
-      await Promise.all(itemsToDelete.map((id) => orderService.delete(id, token)));
+      const results = await Promise.allSettled(itemsToDelete.map((id) => orderService.delete(id, token)));
+      const success = results.filter(result => result.status === "fulfilled").length;
+      const failed = results.length - success;
       setItemsToDelete(null);
-      alertSuccess(`${itemsToDelete.length} commandes supprimées`);
-      await refresh();
+      if (failed) alertError(success + " commande(s) annulée(s), " + failed + " non annulée(s). Liste actualisée.");
+      else alertSuccess(success + " commande(s) annulée(s) ; historique conservé.");
     } catch (error) {
       console.error(error);
-      alertError("Erreur lors de la suppression multiple");
+      alertError("Annulation multiple impossible.");
+    } finally {
+      setIsDeleting(false);
+      await refresh();
     }
   };
 
@@ -148,10 +163,7 @@ export default function OrdersPage() {
 
   const getActionsMenu = (order: Order): Menu[] => {
     const currentId = order.id || order._id || "";
-    const isPending =
-      order.status?.toUpperCase() !== "COMPLETED" &&
-      order.status?.toUpperCase() !== "FAILED" &&
-      order.status?.toUpperCase() !== "DELIVERED";
+    const isPending = canProcessOrder(order.status);
 
     const actions: Menu[] = [];
 
@@ -171,8 +183,8 @@ export default function OrdersPage() {
       });
     }
 
-    actions.push({
-      label: "Supprimer",
+    if (canCancelOrder(order.status)) actions.push({
+      label: "Annuler la commande",
       icon: X,
       onClick: () => setOrderToDelete(order),
     });
@@ -323,6 +335,8 @@ export default function OrdersPage() {
                   <option value="COMPLETED">Payée</option>
                   <option value="DELIVERED">Livrée</option>
                   <option value="FAILED">Échouée</option>
+                  <option value="CANCELLED">Annulée</option>
+                  <option value="REFUNDED">Remboursée</option>
                 </select>
               </div>
 
@@ -429,7 +443,7 @@ export default function OrdersPage() {
               selectable={false}
               selectActions={[
                 {
-                  label: "Supprimer",
+                  label: "Annuler les commandes",
                   onClick: (selected) =>
                     setItemsToDelete(selected.map((o) => o.id || o._id || "")),
                   className: "bg-red-600 text-white",
@@ -488,17 +502,20 @@ export default function OrdersPage() {
         isOpen={!!orderToDelete}
         onClose={() => setOrderToDelete(null)}
         onConfirm={handleDelete}
-        title="Supprimer la commande"
-        message={`Supprimer la commande de "${orderToDelete?.vendeurName}" ?`}
-        confirmText={isDeleting ? "Suppression..." : "Supprimer"}
+        title="Annuler la commande non payée"
+        message={`Annuler la commande de "${orderToDelete?.vendeurName}" ?`}
+        confirmText={isDeleting ? "Annulation..." : "Confirmer l’annulation"}
+        cancelText="Conserver la commande"
       />
 
       <DeleteConfirmationModal
         isOpen={!!itemsToDelete && itemsToDelete.length > 0}
         onClose={() => setItemsToDelete(null)}
         onConfirm={handleDeleteMany}
-        title="Suppression multiple"
-        message={`Supprimer ${itemsToDelete?.length} commandes ?`}
+        confirmText={isDeleting ? "Annulation..." : "Confirmer les annulations"}
+        cancelText="Conserver les commandes"
+        title="Annuler les commandes non payées"
+        message={`Annuler ${itemsToDelete?.length} commandes non payées ? Leur historique sera conservé.`}
       />
     </PageLitLayout>
   );
