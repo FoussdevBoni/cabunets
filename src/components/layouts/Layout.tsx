@@ -16,12 +16,12 @@ interface LayoutProps {
 
 export function Layout({ appTitle, items, headerTitle }: LayoutProps) {
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-screen bg-gray-50 lg:pl-64">
       {/* Sidebar (desktop uniquement) */}
       <Sidebar items={items} title={appTitle} />
 
       {/* Contenu principal */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="min-w-0 pt-16">
         <Header title={headerTitle} />
 
         <main className="flex-1 p-4 lg:p-6 pb-20 lg:pb-6">

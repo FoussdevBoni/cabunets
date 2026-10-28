@@ -21,7 +21,7 @@ export function Header({ title, onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+    <header className="fixed top-0 inset-x-0 lg:left-64 z-30 h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
       {/* Menu mobile (burger) */}
       <div className="flex items-center gap-3">
         {onMenuClick && (

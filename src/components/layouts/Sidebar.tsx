@@ -10,14 +10,14 @@ interface SidebarProps {
 
 export function Sidebar({ items, title }: SidebarProps) {
   return (
-    <aside className="hidden lg:flex lg:flex-col w-64 min-h-screen bg-white border-r border-gray-200">
+    <aside className="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200">
       {/* Logo / Titre */}
-      <div className="h-16 flex items-center px-6 border-b border-gray-200">
+      <div className="h-16 shrink-0 flex items-center px-6 border-b border-gray-200">
         <h1 className="text-xl font-bold text-primary">{title}</h1>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-1">
         {items.map((item) => {
           const Icon = item.icon;
           return (
@@ -40,7 +40,7 @@ export function Sidebar({ items, title }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="shrink-0 p-4 border-t border-gray-200">
         <p className="text-xs text-gray-500">CabuAffili © 2026</p>
       </div>
     </aside>
