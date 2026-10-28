@@ -1,4 +1,5 @@
 // src/jobs/index.ts
+import { registerAffiliateLifecycleJob } from "./processAffiliateLifecycleJob";
 import { registerProcessDueCommissionsJob } from "./processDueCommissionsJob";
 
 /**
@@ -9,6 +10,7 @@ export function registerAllJobs() {
   console.log("🕐 Enregistrement des cron jobs...");
 
   registerProcessDueCommissionsJob();
+  registerAffiliateLifecycleJob();
 
   console.log("✅ Tous les cron jobs sont enregistrés");
 }

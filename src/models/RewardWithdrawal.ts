@@ -24,6 +24,7 @@ export interface IRewardWithdrawal extends Document {
 
   channel: RewardWithdrawalChannel;
   maskedDestination: string;
+  destinationEncrypted?: string;
 
   status: RewardWithdrawalStatus;
 
@@ -71,6 +72,7 @@ const RewardWithdrawalSchema = new Schema<IRewardWithdrawal>(
       required: true,
     },
 
+    destinationEncrypted: { type: String, select: false },
     maskedDestination: {
       type: String,
       required: true,

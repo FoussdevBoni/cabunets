@@ -43,7 +43,7 @@ function applyRoleScope(req: Request, filters: OrderFilters): OrderFilters {
 // ================= CREATE =================
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const result = await orderService.createOrder(req.body);
+    const result = await orderService.createOrder({ ...req.body, clientId: req.user?.userId });
     return res.status(201).json({
       success: true,
       message: "Commande créée et paiement initialisé",
@@ -125,7 +125,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<Response
 export const deleteOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
     await orderService.deleteOrder(req.params.id);
-    return res.json({ message: "Commande supprimée avec succès" });
+    return res.json({ message: "Commande annulée ; historique conservé" });
   } catch (err: any) {
     if (err.statusCode === 404) return res.status(404).json({ error: err.message });
     return res.status(500).json({ error: "Erreur lors de la suppression de la commande" });
@@ -135,7 +135,8 @@ export const deleteOrder = async (req: Request, res: Response): Promise<Response
 // ================= DELIVER =================
 export const deliverOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const order = await orderService.deliverOrder(req.params.id);
+    if (!req.user) return res.status(401).json({ message: "Veuillez vous connecter." });
+    const order = await orderService.deliverOrder(req.params.id, req.user);
     return res.status(200).json({
       success: true,
       message: "Commande marquée comme livrée avec succès",
@@ -143,6 +144,8 @@ export const deliverOrder = async (req: Request, res: Response): Promise<Respons
     });
   } catch (err: any) {
     if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 409) return res.status(409).json({ error: err.message });
+    if (err.statusCode === 403) return res.status(403).json({ error: err.message });
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
     console.error("Erreur deliverOrder:", err);
     return res.status(500).json({ error: "Erreur lors de la mise à jour de la commande" });

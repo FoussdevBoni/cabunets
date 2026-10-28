@@ -23,7 +23,7 @@ export const phone = {
      * @param countryCode - code pays ISO (ex: "CD")
      */
     normalize(value: string, countryCode: string = DEFAULT_COUNTRY): string | null {
-        if (!value) return null;
+        if (typeof value !== "string" || !value) return null;
 
         // Retirer espaces, tirets, parenthèses, points
         let cleaned = value.replace(/[\s\-().]/g, "");

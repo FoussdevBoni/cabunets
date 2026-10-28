@@ -18,6 +18,7 @@ export interface ICommission extends Document {
 
   sourceType: "order" | "seller_activation";
   sourceId: string;
+  qualifyingOrderId?: mongoose.Types.ObjectId;
   eventId: string;
 
   program: string;
@@ -27,6 +28,9 @@ export interface ICommission extends Document {
 
   ruleSnapshot: {
     ruleId: mongoose.Types.ObjectId;
+    sourceAmount?: number;
+    sourceCurrency?: string;
+    conversionRate?: number;
     mode: string;
     fixedAmount?: number;
     percentage?: number;
@@ -66,6 +70,7 @@ const CommissionSchema = new Schema<ICommission>(
       required: true,
     },
 
+    qualifyingOrderId: { type: Schema.Types.ObjectId, ref: "Order", index: true },
     sourceId: {
       type: String,
       required: true,
@@ -112,6 +117,9 @@ const CommissionSchema = new Schema<ICommission>(
     },
 
     ruleSnapshot: {
+      sourceAmount: Number,
+      sourceCurrency: String,
+      conversionRate: Number,
       ruleId: {
         type: Schema.Types.ObjectId,
         ref: "RewardRule",

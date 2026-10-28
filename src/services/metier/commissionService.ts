@@ -1,5 +1,11 @@
 // src/services/metier/commissionService.ts
-import mongoose from "mongoose";
+import { ClientSession } from "mongoose";
+import { Vendeur } from "../../models/Vendeur";
+import { Setting } from "../../models/Setting";
+import { affiliateTransaction } from "./affiliateTransaction";
+import { LedgerEntry } from "../../models/LedgerEntry";
+import { Affiliate } from "../../models/Affiliate";
+import { Order } from "../../models/Order";
 import { Commission, CommissionStatus } from "../../models/Commission";
 import { RewardRule, ProgramType } from "../../models/RewardRule";
 import { money } from "../../utils/money";
@@ -18,13 +24,16 @@ export interface CreateCommissionParams {
   sourceId: string;
   eventId: string;
   orderAmount?: number;
+  orderCurrency?: string;
+  qualifyingOrderId?: string;
+  occurredAt?: Date;
 }
 
 export const commissionService = {
   // ----------------------------------------------------------
   // CREATE A COMMISSION
   // ----------------------------------------------------------
-  async create(params: CreateCommissionParams) {
+  async create(params: CreateCommissionParams, session?: ClientSession) {
     const {
       affiliateId,
       referralId,
@@ -36,19 +45,39 @@ export const commissionService = {
     } = params;
 
     // 1. Idempotency check
-    const existing = await Commission.findOne({ affiliateId, eventId });
+    const existing = await Commission.findOne({ affiliateId, eventId }).session(session ?? null);
     if (existing) {
       return { commission: existing, alreadyExists: true };
     }
 
     // 2. Find active rule for this program
-    const rule = await RewardRule.findOne({ program, active: true });
+    const affiliate = await Affiliate.findById(affiliateId).session(session ?? null);
+    if (!affiliate || affiliate.statut !== "actif") throw new ConflictError("Affilié non actif.");
+    const now = params.occurredAt ?? new Date();
+    const rule = await RewardRule.findOne({ program, active: true,
+      $and: [
+        { $or: [{ startDate: null }, { startDate: { $lte: now } }] },
+        { $or: [{ endDate: null }, { endDate: { $gte: now } }] }
+      ]
+    }).sort({ updatedAt: -1 }).session(session ?? null);
     if (!rule) {
       throw new NotFoundError(
         `Aucune règle active pour le programme "${program}"`
       );
     }
 
+    let calculationAmount = orderAmount;
+    let conversionRate = 1;
+    if ((rule.mode === "pourcentage" || rule.mode === "hybride") &&
+        params.orderCurrency && params.orderCurrency !== rule.currency) {
+      const settings = await Setting.findOne().session(session ?? null);
+      if (!settings) throw new ValidationError("Taux de change non configurés.");
+      const from = settings.getExchangeRate(params.orderCurrency);
+      const to = settings.getExchangeRate(rule.currency);
+      if (!(from > 0 && to > 0)) throw new ValidationError("Taux de change invalides.");
+      conversionRate = to / from;
+      calculationAmount = money.round(orderAmount * conversionRate);
+    }
     // 3. Compute amount
     let amount = 0;
 
@@ -63,12 +92,12 @@ export const commissionService = {
             "Le montant de la commande est requis pour un calcul en pourcentage"
           );
         }
-        amount = money.applyPercentage(orderAmount, rule.percentage ?? 0);
+        amount = money.applyPercentage(calculationAmount, rule.percentage ?? 0);
         break;
 
       case "hybride":
         amount = money.applyHybrid(
-          orderAmount,
+          calculationAmount,
           rule.fixedAmount ?? 0,
           rule.percentage ?? 0
         );
@@ -81,21 +110,23 @@ export const commissionService = {
     // 4. Apply cap
     amount = money.applyCap(amount, rule.cap);
 
-    if (amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       throw new ValidationError("Le montant calculé est nul ou négatif");
     }
 
     // 5. Compute availability date
     const availableAt = new Date(
-      Date.now() + rule.availabilityDelayDays * 24 * 60 * 60 * 1000
+      (params.occurredAt?.getTime() ?? Date.now()) + rule.availabilityDelayDays * 24 * 60 * 60 * 1000
     );
 
     // 6. Create commission
-    const commission = await Commission.create({
+    let commission;
+    try { [commission] = await Commission.create([{
       affiliateId,
       referralId,
       sourceType,
       sourceId,
+      qualifyingOrderId: params.qualifyingOrderId,
       eventId,
       program,
       amount,
@@ -103,6 +134,9 @@ export const commissionService = {
       status: "en_attente",
       ruleSnapshot: {
         ruleId: rule._id,
+        sourceAmount: orderAmount,
+        sourceCurrency: params.orderCurrency ?? rule.currency,
+        conversionRate,
         mode: rule.mode,
         fixedAmount: rule.fixedAmount,
         percentage: rule.percentage,
@@ -110,18 +144,14 @@ export const commissionService = {
         availabilityDelayDays: rule.availabilityDelayDays,
       },
       availableAt,
-    });
+    }], { session });
 
-    // 7. Write to ledger (credit)
-    await ledgerService.write({
-      affiliateId,
-      type: "commission_credit",
-      signedAmount: amount,
-      currency: rule.currency,
-      description: `Commission ${program} - ${sourceType} ${sourceId}`,
-      commissionId: commission._id,
-    });
-
+    } catch (error: any) {
+      if (session || error.code !== 11000) throw error;
+      const existing = await Commission.findOne({ affiliateId, eventId });
+      if (!existing) throw error;
+      return { commission: existing, alreadyExists: true };
+    }
     return { commission, alreadyExists: false };
   },
 
@@ -129,63 +159,60 @@ export const commissionService = {
   // VALIDATE A COMMISSION (en_attente → disponible)
   // ----------------------------------------------------------
   async validate(commissionId: string) {
-    const commission = await Commission.findById(commissionId);
-    if (!commission) {
-      throw new NotFoundError("Commission introuvable");
-    }
-
-    if (commission.status === "disponible") {
-      return { commission, alreadyValidated: true };
-    }
-
-    if (commission.status !== "en_attente" && commission.status !== "detectee") {
-      throw new ConflictError(
-        `Impossible de valider une commission au statut "${commission.status}"`
-      );
-    }
-
-    commission.status = "disponible";
-    commission.validatedAt = new Date();
-    await commission.save();
-
-    return { commission, alreadyValidated: false };
+    const initial = await Commission.findById(commissionId);
+    if (!initial) throw new NotFoundError("Commission introuvable");
+    return affiliateTransaction(String(initial.affiliateId), async session => {
+      const commission = await Commission.findById(commissionId).session(session);
+      if (!commission) throw new NotFoundError("Commission introuvable");
+      if (commission.status === "disponible") return { commission, alreadyValidated: true };
+      if (!["en_attente", "detectee"].includes(commission.status)) {
+        throw new ConflictError("Cette commission ne peut pas être validée.");
+      }
+      if (commission.availableAt && commission.availableAt > new Date()) {
+        throw new ConflictError("Le délai de disponibilité n'est pas expiré.");
+      }
+      const sourceOrderId = commission.sourceType === "order" ? commission.sourceId : commission.qualifyingOrderId;
+      if (!sourceOrderId) throw new ConflictError("La vente admissible doit être référencée.");
+      const order = await Order.findOneAndUpdate({ _id: sourceOrderId, status: "DELIVERED" },
+        { $inc: { affiliateVersion: 1 } }, { session, new: true });
+      if (!order) throw new ConflictError("La commande doit être payée et livrée.");
+      if (commission.sourceType === "seller_activation") {
+        const seller = await Vendeur.findOne({ _id: commission.sourceId, isApproved: true }).session(session);
+        if (!seller || order.vendeurId !== commission.sourceId) throw new ConflictError("Vendeur ou vente non admissible.");
+      }
+      const credit = await LedgerEntry.findOne({ commissionId, type: "commission_credit" }).session(session);
+      if (!credit) await ledgerService.write({
+        affiliateId: commission.affiliateId, type: "commission_credit",
+        signedAmount: commission.amount, currency: commission.currency,
+        description: "Validation commission " + commissionId, commissionId, session
+      });
+      commission.status = "disponible";
+      commission.validatedAt = new Date();
+      await commission.save({ session });
+      return { commission, alreadyValidated: false };
+    }, true);
   },
 
-  // ----------------------------------------------------------
-  // CANCEL A COMMISSION
-  // ----------------------------------------------------------
-  async cancel(commissionId: string, reason: string) {
-    const commission = await Commission.findById(commissionId);
-    if (!commission) {
-      throw new NotFoundError("Commission introuvable");
-    }
-
-    if (commission.status === "payee") {
-      throw new ConflictError(
-        "Impossible d'annuler une commission déjà payée. Créez une régularisation."
-      );
-    }
-
-    if (commission.status === "annulee") {
-      return { commission, alreadyCancelled: true };
-    }
-
-    // 1. Mark commission as cancelled
-    commission.status = "annulee";
-    commission.reason = reason;
-    await commission.save();
-
-    // 2. Write adjustment to ledger (reverse debit)
-    await ledgerService.write({
-      affiliateId: commission.affiliateId,
-      type: "regularisation",
-      signedAmount: -commission.amount,
-      currency: commission.currency,
-      description: `Annulation commission ${commission._id} : ${reason}`,
-      commissionId: commission._id,
-    });
-
-    return { commission, alreadyCancelled: false };
+  async cancel(commissionId: string, reason: string, existingSession?: ClientSession) {
+    if (!reason?.trim()) throw new ValidationError("Motif requis.");
+    const initial = await Commission.findById(commissionId);
+    if (!initial) throw new NotFoundError("Commission introuvable");
+    const action = async (session: ClientSession) => {
+      const commission = await Commission.findById(commissionId).session(session);
+      if (!commission) throw new NotFoundError("Commission introuvable");
+      if (commission.status === "annulee") return { commission, alreadyCancelled: true };
+      // A reversal is recorded even after payout; the resulting debt remains visible.
+      const credit = await LedgerEntry.findOne({ commissionId, type: "commission_credit" }).session(session);
+      if (credit) await ledgerService.write({
+        affiliateId: commission.affiliateId, type: "regularisation",
+        signedAmount: -commission.amount, currency: commission.currency,
+        description: "Annulation commission : " + reason, commissionId, session
+      });
+      commission.status = "annulee"; commission.reason = reason.trim();
+      await commission.save({ session });
+      return { commission, alreadyCancelled: false };
+    };
+    return existingSession ? action(existingSession) : affiliateTransaction(String(initial.affiliateId), action);
   },
 
   // ----------------------------------------------------------
@@ -259,25 +286,15 @@ export const commissionService = {
   // PROCESS DUE COMMISSIONS (cron)
   // ----------------------------------------------------------
   async processDueCommissions() {
-    const now = new Date();
-
-    const result = await Commission.updateMany(
-      {
-        status: "en_attente",
-        availableAt: { $lte: now },
-      },
-      {
-        $set: {
-          status: "disponible",
-          validatedAt: now,
-        },
-      }
-    );
-
-    return {
-      modifiedCount: result.modifiedCount,
-      timestamp: now,
-    };
+    const due = await Commission.find({ status: "en_attente", availableAt: { $lte: new Date() } }).select("_id");
+    let modifiedCount = 0;
+    for (const item of due) {
+      try {
+        const result = await this.validate(String(item._id));
+        if (!result.alreadyValidated) modifiedCount++;
+      } catch (error) { console.error("Commission non validée", String(item._id), error); }
+    }
+    return { modifiedCount, timestamp: new Date() };
   },
 };
 

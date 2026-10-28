@@ -5,7 +5,7 @@ import fsPromises from 'fs/promises';
 import multer from 'multer';
 import dotenv from "dotenv";
 
-dotenv.config();
+if (process.env.NODE_ENV !== "test") dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 

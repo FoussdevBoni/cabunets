@@ -197,7 +197,12 @@ export const affiliateService = {
     ]);
 
     return {
-      items,
+      items: items.map(item => {
+        const value = item.toObject();
+        const account: any = value._id;
+        return { ...value, _id: account?._id ?? value._id,
+          id: String(account?._id ?? value._id), user: account };
+      }),
       total,
       page,
       limit,

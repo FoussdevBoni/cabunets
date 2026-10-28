@@ -11,7 +11,9 @@ import {
 } from "../../controllers/metier/commissionController";
 import { authMiddleware } from "../../middlewares/authMiddleware";
 
+import { auditLogger } from "../../middlewares/auditLogger";
 const router = Router();
+router.use(auditLogger);
 
 // ============================================================
 // ROUTES AFFILIÉ

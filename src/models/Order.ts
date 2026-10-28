@@ -19,7 +19,12 @@ export interface IOrder extends Document {
   providerTransactionId?: string;
   failureReason?: string;
   failureCode?: string;
-  status: "PENDING" | "COMPLETED" | "FAILED" | "DELIVERED";
+  status: "PENDING" | "COMPLETED" | "FAILED" | "DELIVERED" | "CANCELLED" | "REFUNDED";
+  reversalReason?: string;
+  reversedAt?: Date;
+  reversalReference?: string;
+  affiliateVersion: number;
+  affiliateSyncedAt?: Date;
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   depositPaymentStatus?: string;
   
@@ -59,11 +64,16 @@ const OrderSchema = new Schema<IOrder>(
     providerTransactionId: { type: String, required: false },
     failureReason: { type: String, required: false },
     failureCode: { type: String, required: false },
+    affiliateSyncedAt: Date,
+    affiliateVersion: { type: Number, default: 0 },
+    reversalReason: String,
+    reversedAt: Date,
+    reversalReference: String,
     status: {
       type: String,
       required: true,
       default: "PENDING",
-      enum: ["PENDING", "COMPLETED", "FAILED", "DELIVERED"]
+      enum: ["PENDING", "COMPLETED", "FAILED", "DELIVERED", "CANCELLED", "REFUNDED"]
     },
     depositExistence: {
       type: String,
@@ -101,6 +111,7 @@ const OrderSchema = new Schema<IOrder>(
   },
   { 
     timestamps: true,
+    optimisticConcurrency: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
   }

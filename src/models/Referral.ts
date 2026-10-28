@@ -65,7 +65,7 @@ const ReferralSchema = new Schema<IReferral>(
 // ─────────────────────────────────────────────
 // RÈGLE D'OR : un filleul ne peut avoir qu'UN SEUL parrain
 // ─────────────────────────────────────────────
-ReferralSchema.index({ filleulId: 1 }, { unique: true });
+ReferralSchema.index({ filleulId: 1 }, { unique: true, name: "referral_filleul_unique" });
 
 // Recherche rapide : tous les filleuls d'un parrain
 ReferralSchema.index({ affiliateId: 1, createdAt: -1 });

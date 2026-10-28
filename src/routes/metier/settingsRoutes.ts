@@ -8,7 +8,10 @@ import {
   updateWithdrawalLimits
 } from "../../controllers/metier/settingsController";
 
+import { authMiddleware } from "../../middlewares/authMiddleware";
+import { adminOnly } from "../../middlewares/adminOnly";
 const router = express.Router();
+router.use((req, res, next) => req.method === "GET" ? next() : authMiddleware(req, res, () => adminOnly(req, res, next)));
 
 router.get("/", getSettings);
 router.put("/commission", updateCommission);

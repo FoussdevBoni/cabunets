@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { authMiddleware } from "../../middlewares/authMiddleware";
+import { adminOnly } from "../../middlewares/adminOnly";
+import { auditLogger } from "../../middlewares/auditLogger";
+import { rewardRules } from "../../controllers/metier/rewardRuleController";
+const router = Router();
+router.use(authMiddleware, adminOnly, auditLogger);
+router.get("/", rewardRules);
+router.get("/:id", rewardRules);
+router.post("/", rewardRules);
+router.put("/:id", rewardRules);
+router.patch("/:id/active", rewardRules);
+export default router;
