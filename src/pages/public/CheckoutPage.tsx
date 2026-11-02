@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { readCheckoutDraft, writeCheckoutDraft, clearCheckoutDraft, createCheckoutKey, apiErrorMessage } from "../../utils/checkoutSession";
+import { useState, useRef, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import {
     Smartphone,
@@ -10,7 +11,7 @@ import {
 import { useOffre } from "../../hooks/offres/useOffre"
 import { useVendeur } from "../../hooks/vendeurs/useVendeur"
 import { Order } from "../../utils/database"
-import { alertError, alertSuccess } from "../../helpers/alertError"
+import { alertError } from "../../helpers/alertError"
 import { formatToRDCPhone } from "../../utils/formatRDCPhone"
 import { useAuth } from "../../hooks/auth/useAuth"
 import { orderService } from "../../services/orderService"
@@ -25,22 +26,36 @@ const providersRDC = [
 ];
 
 export default function CheckoutPage() {
-    const {user} = useAuth()
-    const { token } = useToken()
+    const {user, setUser, error: authError} = useAuth()
+    const { token, deleteToken } = useToken()
 
     console.log("userId" , user?.id)
     const [searchParams] = useSearchParams()
     const offerId = searchParams.get("offer")
     const navigate = useNavigate()
-    const [form, setForm] = useState({
+    const [draft] = useState(() => readCheckoutDraft(offerId))
+    const busy = useRef(false)
+    const attempt = useRef<{ key: string; signature?: string; uncertain?: boolean }>(draft?.attempt || { key: createCheckoutKey() })
+    const [sessionNeeded, setSessionNeeded] = useState(!!draft?.sessionNeeded)
+    const [guest, setGuest] = useState(!!draft?.guest)
+    const [checkoutError, setCheckoutError] = useState("")
+    const [form, setForm] = useState<{ rechargePhone: string; paymentPhone: string; correspondent: string }>(draft?.form || {
         rechargePhone: "",
         paymentPhone: "",
         correspondent: providersRDC[0].value,
     })
 
-    const [currency, setCurrency] = useState<"CDF" | "USD">("CDF")
+    const [currency, setCurrency] = useState<"CDF" | "USD">(draft?.currency || "CDF")
     const [submitting, setSubmitting] = useState(false)
     const [showConfirm, setShowConfirm] = useState(false)
+
+    useEffect(() => {
+        writeCheckoutDraft({ offerId, form, currency, attempt: attempt.current, sessionNeeded, guest })
+    }, [offerId, form, currency, sessionNeeded, guest])
+    useEffect(() => {
+        if ((authError as any)?.response?.status === 401 && !guest) setSessionNeeded(true)
+        if (token && user && !authError) { setSessionNeeded(false); setGuest(false) }
+    }, [token, user, authError, guest])
 
     const { offre, offreLoading } = useOffre({ offreId: offerId! })
     const { vendeur, vendeurLoading } = useVendeur({ vendeurId: offre?.vendeurId! })
@@ -96,11 +111,14 @@ export default function CheckoutPage() {
     }
 
     const confirmOrder = async () => {
-        if (user && !token) {
+        if (busy.current || sessionNeeded) return
+        if (!guest && user && !token) {
             alertError("Votre session a expiré. Reconnectez-vous avant de commander.")
             return
         }
+        busy.current = true
         setSubmitting(true)
+        setCheckoutError("")
 
         try {
             const cleanRechargePhone = formatToRDCPhone(form.rechargePhone)
@@ -123,23 +141,54 @@ export default function CheckoutPage() {
                 status: "PENDING"
             }
 
-            const data: any = await orderService.create(newOrder as Order, token)
+            if (guest) delete newOrder.clientId
+            const signature = JSON.stringify(newOrder)
+            if (attempt.current.signature && attempt.current.signature !== signature) {
+                if (attempt.current.uncertain) throw new Error("Retrouvez le suivi du paiement précédent avant de modifier cette commande.")
+                attempt.current = { key: createCheckoutKey() }
+            }
+            attempt.current.signature = signature
+            attempt.current.uncertain = true
+            writeCheckoutDraft({ offerId, form, currency, attempt: attempt.current, sessionNeeded, guest })
+            const data: any = await orderService.create(newOrder as Order, guest ? undefined : token, attempt.current.key)
 
             if (data.success) {
-                alertSuccess("Commande initiée avec succès !")
+                if (!data.order?.id && !data.order?._id) throw new Error("La référence de commande manque. Ne relancez pas un paiement.")
+                clearCheckoutDraft()
                 setShowConfirm(false)
                 navigate(`/order-pending?orderId=${data.order.id || data.order._id}`)
             }
 
         } catch (error: any) {
             console.error("Erreur:", error.response)
-            alertError(error?.response?.data?.error || "Une erreur est survenue lors de la commande")
+            const knownOrder = error?.response?.data?.order
+            if (knownOrder?._id || knownOrder?.id) {
+                clearCheckoutDraft()
+                navigate("/order-pending?orderId=" + (knownOrder.id || knownOrder._id))
+            } else if (error?.response?.status === 401) {
+                deleteToken(); setUser(null); setGuest(false); setSessionNeeded(true)
+                attempt.current.uncertain = false
+                setShowConfirm(false)
+                setCheckoutError(apiErrorMessage(error, "Votre session n’est plus valide. Reconnectez-vous ou continuez comme invité."))
+            } else {
+                if (error?.response?.status && error.response.status < 500 && error.response.status !== 409) attempt.current.uncertain = false
+                const message = apiErrorMessage(error, error?.message?.startsWith("Retrouvez") ? error.message : "Impossible de confirmer la commande. Votre saisie est conservée. Réessayez sans changer les informations pour retrouver le même paiement.")
+                setCheckoutError(message)
+                alertError(message)
+            }
+            writeCheckoutDraft({ offerId, form, currency, attempt: attempt.current, sessionNeeded: error?.response?.status === 401 || sessionNeeded, guest: error?.response?.status === 401 ? false : guest })
         } finally {
+            busy.current = false
             setSubmitting(false)
         }
     }
 
     const totalPrice = calculatePrice()
+    const reconnect = () => {
+        deleteToken(); setUser(null)
+        writeCheckoutDraft({ offerId, form, currency, attempt: attempt.current, sessionNeeded: true, guest: false })
+        navigate("/login?returnTo=" + encodeURIComponent("/checkout?offer=" + offerId))
+    }
     const selectedProviderLabel = providersRDC.find(p => p.value === form.correspondent)?.name
 
     return (
@@ -196,6 +245,14 @@ export default function CheckoutPage() {
                             {/* Formulaire */}
                             <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-6">
                                 <h3 className="text-lg font-medium text-gray-900 mb-6">Détails de la commande</h3>
+                                {checkoutError && <p role="alert" className="mb-4 text-red-700">{checkoutError}</p>}
+                                {sessionNeeded && <div className="mb-6 rounded-lg bg-amber-50 p-4 space-y-3" role="alert">
+                                    <p>Votre session n’est plus valide. Vos informations sont conservées.</p>
+                                    <button type="button" className="underline font-medium mr-4" onClick={reconnect}>Me reconnecter</button>
+                                    <button type="button" className="underline font-medium" onClick={() => { deleteToken(); setUser(null); setGuest(true); setSessionNeeded(false); setCheckoutError(""); }}>Continuer comme invité</button>
+                                    <p className="text-sm">En tant qu’invité, la commande ne sera pas rattachée à votre compte.</p>
+                                </div>}
+                                {guest && <p role="status" className="mb-4 text-sm">Achat invité : cette commande ne sera pas rattachée à votre compte.</p>}
 
                                 <div className="space-y-6">
                                     {/* Numéro de recharge des unités */}
@@ -206,6 +263,7 @@ export default function CheckoutPage() {
                                         <div className="relative">
                                             <Smartphone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                                             <input
+                                                disabled={submitting || !!attempt.current.uncertain}
                                                 type="tel"
                                                 required
                                                 value={form.rechargePhone}
@@ -225,6 +283,7 @@ export default function CheckoutPage() {
                                         <div className="relative">
                                             <Wallet className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                                             <select
+                                                disabled={submitting || !!attempt.current.uncertain}
                                                 value={form.correspondent}
                                                 onChange={(e) => setForm(prev => ({ ...prev, correspondent: e.target.value }))}
                                                 className="pl-12 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition bg-white"
@@ -246,6 +305,7 @@ export default function CheckoutPage() {
                                         <div className="relative">
                                             <Smartphone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                                             <input
+                                                disabled={submitting || !!attempt.current.uncertain}
                                                 type="tel"
                                                 required
                                                 value={form.paymentPhone}
@@ -265,7 +325,7 @@ export default function CheckoutPage() {
                                         <div className="flex gap-3">
                                             <button
                                                 type="button"
-                                                onClick={() => setCurrency("CDF")}
+                                                disabled={submitting || !!attempt.current.uncertain} onClick={() => setCurrency("CDF")}
                                                 className={`flex-1 py-3 rounded-lg border transition ${currency === "CDF"
                                                     ? "border-primary bg-primary/10 text-primary font-bold"
                                                     : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
@@ -275,7 +335,7 @@ export default function CheckoutPage() {
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setCurrency("USD")}
+                                                disabled={submitting || !!attempt.current.uncertain} onClick={() => setCurrency("USD")}
                                                 className={`flex-1 py-3 rounded-lg border transition ${currency === "USD"
                                                     ? "border-primary bg-primary/10 text-primary font-bold"
                                                     : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
@@ -315,7 +375,7 @@ export default function CheckoutPage() {
 
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={submitting}
+                                    disabled={submitting || sessionNeeded}
                                     className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary/90 transition disabled:opacity-50 text-lg"
                                 >
                                     {submitting ? "Envoi en cours..." : "Continuer"}
@@ -365,13 +425,13 @@ export default function CheckoutPage() {
                             <button
                                 onClick={() => setShowConfirm(false)}
                                 className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition"
-                                disabled={submitting}
+                                disabled={submitting || sessionNeeded}
                             >
                                 Annuler
                             </button>
                             <button
                                 onClick={confirmOrder}
-                                disabled={submitting}
+                                disabled={submitting || sessionNeeded}
                                 className="flex-1 bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary/90 transition disabled:opacity-50"
                             >
                                 {submitting ? "Envoi..." : "Confirmer"}

@@ -36,18 +36,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   
   // Récupérer l’user au montage
   useEffect(() => {
+    let active = true;
     const fetchUser = async () => {
+      if (!token) { setUser(null); setLoading(false); return; }
+      setLoading(true);
       try {
         const currentUser = await authService.getUserProfile(token);
-        setUser(currentUser);
+        if (active) { setUser(currentUser); setError(null); }
       } catch (err) {
-        setError(err as Error);
+        if (active) { setError(err as Error); setUser(null); }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchUser();
+    return () => { active = false; };
   }, [token]);
 
   // Permet de forcer une mise à jour manuelle de l'user (ex: après login)

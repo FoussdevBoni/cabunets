@@ -104,6 +104,7 @@ export default function OrderPendingPage() {
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-white rounded-2xl border p-8 shadow-sm text-center">
                 
+                {order && <p className="mb-4 text-xs text-gray-500 break-all">Référence de suivi : {order.id || order._id}</p>}
                 {/* PENDING */}
                 {status === "PENDING" && (
                     <div>
@@ -118,7 +119,7 @@ export default function OrderPendingPage() {
                             Paiement en cours
                         </h2>
                         <p className="text-gray-600 text-sm mb-6">
-                            Veuillez valider le push Mobile Money sur votre téléphone (<b>{order?.paymentPhone || order?.phoneNumber}</b>).
+                            {order?.paymentInitiationState === "unknown" || order?.paymentInitiationState === "starting" ? <>La demande est en cours de vérification. Si vous avez déjà validé ou été débité, ne relancez pas le paiement.</> : <>Veuillez valider la demande Mobile Money sur votre téléphone (<b>{order?.paymentPhone || order?.phoneNumber}</b>).</>}
                         </p>
 
                         <div className="bg-gray-50 rounded-xl p-4 text-left space-y-3 mb-6 border">

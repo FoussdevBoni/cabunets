@@ -32,6 +32,11 @@ export function OrderCard({
         color: "text-green-600"
       }
     }
+    if (order.whatsappProcessing) return {
+      icon: <Clock className="h-3.5 w-3.5 text-amber-600" />,
+      label: order.whatsappProcessingStuckAt ? "À vérifier" : "Envoi en cours",
+      color: "text-amber-600"
+    };
     return {
       icon: <Clock className="h-3.5 w-3.5 text-gray-400" />,
       label: "Non envoyé",

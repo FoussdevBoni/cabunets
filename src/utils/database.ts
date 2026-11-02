@@ -115,6 +115,7 @@ export interface Order {
   vendeurId: string;
   vendeurName: string;
   vendeurPhone: string;
+  paymentInitiationState?: "starting" | "accepted" | "unknown";
   depositId?: string;             // Reference unique du paiement Cabupay
   providerTransactionId?: string; // ID transaction opérateur final
   failureReason?: string;         // Motif en cas d'échec du paiement
@@ -124,6 +125,9 @@ export interface Order {
   reversedAt?: Date;
   depositExistence?: 'FOUND' | 'NOT_FOUND';
   whatsappSent?: boolean;
+  whatsappProcessing?: boolean;
+  whatsappProcessingAt?: Date;
+  whatsappProcessingStuckAt?: Date;
   whatsappSentAt?: Date;
   deliveredAt?: Date;
   failureCode?: string

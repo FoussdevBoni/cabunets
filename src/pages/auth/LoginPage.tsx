@@ -1,5 +1,6 @@
+import { safeCheckoutReturn } from "../../utils/checkoutSession";
 import { useState } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, useSearchParams, Link } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react"
 import useToken from "../../hooks/auth/useToken"
 import { authService } from "../../services/authService"
@@ -13,6 +14,7 @@ export default function LoginPage() {
   
   const { saveToken } = useToken()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +32,8 @@ export default function LoginPage() {
 
       if (response.token) {
         saveToken(response.token)
-        navigate(`/redirect?token=${response.token}`)
+        const returnTo = safeCheckoutReturn(params.get("returnTo"))
+        navigate("/redirect?token=" + encodeURIComponent(response.token) + (returnTo ? "&returnTo=" + encodeURIComponent(returnTo) : ""))
       } else {
         setError("Token non reçu")
       }

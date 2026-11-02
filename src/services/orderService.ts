@@ -80,6 +80,13 @@ export const baseService = dataService<Order>("orders");
 
 export const orderService = {
   ...baseService,
+  async create(data: Partial<Order>, token?: string, requestKey?: string) {
+    const response = await axios.post(API_URL + "/orders", data, { headers: {
+      ...(token ? { Authorization: "Bearer " + token } : {}),
+      ...(requestKey ? { "Idempotency-Key": requestKey } : {}),
+    } });
+    return response.data;
+  },
 
   // ----------------------------------------------------------
   // 1. Détecter l'opérateur (Correspondent) à partir du numéro

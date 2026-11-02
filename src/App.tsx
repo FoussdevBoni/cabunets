@@ -1,3 +1,4 @@
+import PwaUpdateNotice from "./components/pwa/PwaUpdateNotice";
 import { captureReferral } from "./utils/referral";
 captureReferral();
 import { Route, Routes, Navigate } from 'react-router-dom';
@@ -43,6 +44,7 @@ function App() {
   if (MAINTENANCE_MODE) {
     return (
       <ErrorBoundary>
+      <PwaUpdateNotice />
         <Routes>
           <Route path="/maintenance" element={<MaintenancePage />} />
           <Route path="*" element={<Navigate to="/maintenance" replace />} />

@@ -1,3 +1,4 @@
+import { safeCheckoutReturn } from "../../utils/checkoutSession";
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { authService } from "../../services/authService";
@@ -20,7 +21,7 @@ export default function Redirect() {
         const currentUser : User | null = await authService.getUserProfile(token);
         
         if (currentUser) {
-          navigate(`/${currentUser.role}/overview`);
+          navigate(safeCheckoutReturn(searchParams.get("returnTo")) || "/" + currentUser.role + "/overview", { replace: true });
         } else {
           navigate("/login");
         }
@@ -33,7 +34,7 @@ export default function Redirect() {
     };
 
     fetchUser();
-  }, [token, navigate]);
+  }, [token, navigate, searchParams]);
 
   return <Loader />;
 }
