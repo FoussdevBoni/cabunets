@@ -1,129 +1,59 @@
-// services/orderNotificationService.ts
-import { Order } from '../../models/Order';
-import { cabupayWhatsappService } from '../providers/cabupayWhatsappService';
-
-export interface OrderNotificationParams {
-  orderId: string;
-  vendeurName: string;
-  vendeurPhone: string;
-  network: string;
-  units: number;
-  price: number;
-  currency: string;
-  customerPhone: string;
-}
+import { Order } from "../../models/Order";
+import { cabupayWhatsappService } from "../providers/cabupayWhatsappService";
 
 export class OrderNotificationService {
-  /**
-   * Envoie une notification WhatsApp pour une commande
-   * Met à jour la commande en base de données
-   * @param order - L'ordre Mongoose
-   * @returns boolean - True si le message a été envoyé, false sinon
-   */
-  static async sendWhatsAppNotification(order: any, whatsappSentMode: "auto" | "manuel"): Promise<boolean> {
+  static async sendWhatsAppNotification(order: any, mode: "auto" | "manuel"): Promise<boolean> {
+    let claimed: any;
     try {
-      // Vérifier si le message doit être envoyé
-      if (order.whatsappSent) {
-        console.log(`ℹ️ WhatsApp déjà envoyé pour la commande #${order._id}`);
-        return false;
-      }
-
-      // Vérifier que la commande est COMPLETED
-      if (order.status !== 'COMPLETED') {
-        console.log(`ℹ️ La commande #${order._id} n'est pas COMPLETED (status: ${order.status})`);
-        return false;
-      }
-
-      // Vérifier que nous avons les informations nécessaires
-      if (!order.vendeurPhone) {
-        console.error(`❌ Pas de numéro vendeur pour la commande #${order._id}`);
-        return false;
-      }
-
-      // Envoyer la notification WhatsApp
-      await cabupayWhatsappService.notifyNewOrder({
-        vendeurName: order.vendeurName || 'Vendeur',
-        vendeurPhone: order.vendeurPhone,
-        orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-        network: order.network,
-        units: order.units,
-        price: order.price,
-        currency: order.currency || 'FC',
-        customerPhone: order.phoneNumber,
+      claimed = await Order.findOneAndUpdate({
+        _id: order._id, status: { $in: ["COMPLETED", "DELIVERED"] },
+        whatsappSent: { $ne: true }, whatsappProcessing: { $ne: true },
+        vendeurPhone: { $exists: true, $nin: ["", null] },
+      }, { $set: { whatsappProcessing: true, whatsappProcessingAt: new Date() },
+        $inc: { __v: 1 } }, { new: true });
+      if (!claimed) return false;
+      const accepted = await cabupayWhatsappService.notifyNewOrder({
+        orderId: String(claimed._id),
+        vendeurName: claimed.vendeurName || "Vendeur", vendeurPhone: claimed.vendeurPhone,
+        orderRef: "CMD-" + String(claimed._id).slice(-6).toUpperCase(),
+        network: claimed.network, units: claimed.units, price: claimed.price,
+        currency: claimed.currency || "CDF", customerPhone: claimed.phoneNumber,
       });
-
-      // Marquer comme envoyé dans la base de données
-      order.whatsappSent = true;
-      order.whatsappSentAt = new Date();
-      order.whatsappSentMode = whatsappSentMode; // ⬅️ AJOUT
-      await order.save();
-
-      console.log(`✅ WhatsApp envoyé pour la commande #${order._id} (mode: ${whatsappSentMode})`);
+      if (accepted === false) {
+        // A definite rejection may be retried. An uncertain network outcome is
+        // thrown by the provider and deliberately keeps the claim for review.
+        await Order.updateOne({ _id: claimed._id, whatsappProcessingAt: claimed.whatsappProcessingAt },
+          { $set: { whatsappProcessing: false }, $inc: { __v: 1 } });
+        return false;
+      }
+      if (accepted !== true) throw new Error("Acceptation WhatsApp non confirmée");
+      await Order.updateOne({ _id: claimed._id, whatsappProcessingAt: claimed.whatsappProcessingAt },
+        { $set: { whatsappSent: true, whatsappSentAt: new Date(),
+          whatsappSentMode: mode, whatsappProcessing: false },
+          $unset: { whatsappProcessingStuckAt: 1 }, $inc: { __v: 1 } });
       return true;
-      return true;
-
-    } catch (error: any) {
-      console.error(`❌ Échec d'envoi WhatsApp pour la commande #${order._id}:`, error.message);
-      // On ne marque PAS comme envoyé pour pouvoir réessayer plus tard
-      // La commande reste avec whatsappSent = false
+    } catch {
+      // Never resend automatically after an ambiguous timeout or a failed save:
+      // the provider may already have delivered the message.
+      if (claimed) {
+        try { await Order.updateOne({ _id: claimed._id, whatsappProcessing: true },
+          { $set: { whatsappProcessingStuckAt: new Date() }, $inc: { __v: 1 } }); } catch {}
+      }
+      console.error("[WhatsApp] Envoi non confirmé, vérification requise pour", String(order._id));
       return false;
     }
   }
 
-  /**
-   * Envoie les notifications WhatsApp pour toutes les commandes COMPLETED
-   * dont le message n'a pas encore été envoyé
-   * @returns { sent: number, failed: number, total: number }
-   */
-  static async sendAllPendingWhatsAppMessages(): Promise<{ sent: number; failed: number; total: number }> {
-    try {
-      // Récupérer toutes les commandes COMPLETED sans message WhatsApp envoyé
-      const pendingOrders = await Order.find({
-        status: 'COMPLETED',
-        whatsappSent: { $ne: true }
-      });
-
-      if (pendingOrders.length === 0) {
-        return { sent: 0, failed: 0, total: 0 };
-      }
-
-      let sentCount = 0;
-      let failedCount = 0;
-
-      // Parcourir et envoyer chaque message
-      for (const order of pendingOrders) {
-        const success = await this.sendWhatsAppNotification(order , "manuel");
-        if (success) {
-
-          sentCount++;
-        } else {
-          failedCount++;
-        }
-      }
-
-      return {
-        total: pendingOrders.length,
-        sent: sentCount,
-        failed: failedCount
-      };
-
-    } catch (error: any) {
-      console.error('❌ Erreur lors du traitement des messages:', error.message);
-      throw error;
-    }
+  static async sendAllPendingWhatsAppMessages() {
+    const pending = await Order.find({ status: { $in: ["COMPLETED", "DELIVERED"] },
+      whatsappSent: { $ne: true }, whatsappProcessing: { $ne: true } });
+    let sent = 0;
+    for (const order of pending) if (await this.sendWhatsAppNotification(order, "manuel")) sent++;
+    return { sent, failed: pending.length - sent, total: pending.length };
   }
 
-  /**
-   * Vérifie les conditions pour envoyer une notification WhatsApp
-   * @param order - L'ordre Mongoose
-   * @param paymentStatus - Le statut du paiement (ex: 'COMPLETED')
-   * @returns boolean - True si les conditions sont remplies
-   */
-  static shouldSendNotification(order: any, paymentStatus: string): boolean {
-    return (
-      paymentStatus === 'COMPLETED' &&
-      !order.whatsappSent &&
-      order.status === 'COMPLETED'
-    );
+  static shouldSendNotification(order: any, paymentStatus: string) {
+    return paymentStatus === "COMPLETED" && !order.whatsappSent && !order.whatsappProcessing &&
+      ["COMPLETED", "DELIVERED"].includes(order.status);
   }
 }

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { cabupayPaymentService } from '../../services/providers/cabupayPaymentService';
-import { cabupayWhatsappService } from '../../services/providers/cabupayWhatsappService';
+import { applyOrderPayment } from "../../services/metier/orderPaymentLifecycle";
 import { Order } from '../../models/Order';
 
 /**
@@ -34,86 +34,12 @@ export const handleCabupayWebhook = async (req: Request, res: Response): Promise
     const payload = cabupayPaymentService.handleWebhookNotification(req.body, signatureHeader);
     const { clientReference, depositId, status, providerTransactionId, failureReason } = payload;
 
-    // 1. Récupération de la commande
-    const order = await Order.findById(clientReference);
-
-    if (!order) {
-      console.error(`[Webhook Cabupay] Commande introuvable: ${clientReference}`);
-      res.status(200).json({ success: false, message: 'Commande introuvable' });
-      return;
+    if (!["COMPLETED", "FAILED"].includes(status)) {
+      res.status(400).json({ success: false, error: "Statut de paiement invalide." }); return;
     }
-
-    // 2. Idempotence : Si déjà en statut final, on ne retraite pas
-    const FINAL_STATUSES = ['COMPLETED', 'FAILED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
-    if (FINAL_STATUSES.includes(order.status)) {
-      console.log(`[Webhook Cabupay] Commande #${order._id} déjà en statut final (${order.status}). Ignoré.`);
-      res.status(200).json({ success: true, message: 'Notification déjà traitée' });
-      return;
-    }
-
-    // Le webhook confirme l'existence effective de la transaction chez PawaPay
-    order.depositExistence = 'FOUND';
-    if (depositId) {
-      order.depositId = depositId;
-    }
-
-    // 3. Traitement des statuts finaux PawaPay
-    if (status === 'COMPLETED') {
-      order.status = 'COMPLETED';
-      if (providerTransactionId) {
-        order.providerTransactionId = providerTransactionId;
-      }
-
-      // Envoi de la notification WhatsApp au vendeur
-      try {
-        await cabupayWhatsappService.notifyNewOrder({
-          vendeurName: order.vendeurName || 'Vendeur',
-          vendeurPhone: order.vendeurPhone,
-          orderRef: `CMD-${order._id.toString().slice(-6).toUpperCase()}`,
-          network: order.network,
-          units: order.units,
-          price: order.price,
-          currency: order.currency || 'FC',
-          customerPhone: order.phoneNumber,
-        });
-
-        // ✅ Mise à jour des champs WhatsApp UNIQUEMENT si l'envoi a réussi
-        order.whatsappSent = true;
-        order.whatsappSentAt = new Date();
-        order.whatsappSentMode = 'auto'; 
-        console.log(`[WhatsApp] Notification envoyée avec succès pour la commande #${order._id}`);
-      } catch (whatsappError: any) {
-        // ❌ En cas d'échec, on ne met pas à jour les champs whatsappSent
-        console.error(`[WhatsApp Error] Échec pour commande #${order._id}:`, whatsappError.message || whatsappError);
-      }
-
-      await order.save();
-      console.log(`[Paiement Réussi] Commande #${order._id} mise à jour en COMPLETED`);
-
-    } else if (status === 'FAILED') {
-      order.status = 'FAILED';
-
-      console.log("[handleCabupayWebhook]: failureReason", failureReason);
-
-      if (failureReason) {
-        if (typeof failureReason === 'object' && failureReason !== null && 'failureMessage' in failureReason) {
-          const code = (failureReason as any).failureCode || 'FAILED';
-          const msg = (failureReason as any).failureMessage;
-          order.failureReason = `${code}: ${msg}`;
-          order.failureCode = code;
-        } else {
-          order.failureReason = typeof failureReason === 'string'
-            ? failureReason
-            : JSON.stringify(failureReason);
-        }
-      } else {
-        order.failureReason = 'Paiement échoué';
-      }
-
-      await order.save();
-      console.warn(`[Paiement Échoué] Commande #${order._id} - Motif: ${order.failureReason}`);
-    }
-
+    const existing = await Order.findById(clientReference);
+    if (!existing) { res.status(200).json({ success: false, message: "Commande introuvable" }); return; }
+    await applyOrderPayment(clientReference, status, { depositId, providerTransactionId, failureReason });
     res.status(200).json({ success: true, message: 'Notification traitée' });
   } catch (error: any) {
     console.error('[Cabupay Webhook Error]:', error.message || error);

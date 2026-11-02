@@ -1,3 +1,6 @@
+import { createHash } from "crypto";
+import { ValidationError, ConflictError } from "../../utils/errors";
+import { applyOrderPayment } from "./orderPaymentLifecycle";
 import { affiliateLifecycleService } from "./affiliateLifecycleService";
 // services/metier/orderService.ts
 import { Order } from "../../models/Order";
@@ -125,110 +128,77 @@ class OrderService {
   // ----------------------------------------------------------
   // CREATE
   // ----------------------------------------------------------
-  async createOrder(body: any) {
-    const {
-      price, amount, paymentPhone, correspondent,
-      currency = "USD", country = "COD",
-      description, units, network,
-    } = body;
-
-    if (!paymentPhone || typeof paymentPhone !== "string" || !paymentPhone.trim()) {
-      const err: any = new Error("Le numéro de téléphone pour le paiement (paymentPhone) est obligatoire.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    if (!correspondent || typeof correspondent !== "string" || !correspondent.trim()) {
-      const err: any = new Error("Le moyen de paiement / opérateur (correspondent) est obligatoire.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    const targetAmount = price || amount;
-    if (!Number.isFinite(Number(targetAmount)) || Number(targetAmount) <= 0) {
-      const err: any = new Error("Le prix de la commande (price) est obligatoire.");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    const selectedCorrespondent = correspondent.trim().toUpperCase();
-
-    const order = await Order.create({
-      ...body,
-      price: Number(targetAmount),
-      deliveredAt: undefined,
-      reversedAt: undefined,
-      affiliateVersion: 0,
-      correspondent: selectedCorrespondent,
-      country,
-      currency,
-      status: "PENDING",
-    });
-
-    const finalDescription =
-      description ||
-      `Achat de ${units || ""} unités ${network || ""} - Cmd #${order._id}`;
-
-    const callbackUrl =
-      process.env.CABUPAY_CALLBACK_URL ||
-      "https://cabunets-production.up.railway.app/api/payments/cabupay-callback";
-
-    const depositDTO: CreateDepositDTO = {
-      appId: process.env.CABUPAY_APP_ID || "CABUNETS",
-      clientReference: order._id.toString(),
-      amount: targetAmount.toString(),
-      currency,
-      phone: paymentPhone,
-      correspondent: selectedCorrespondent,
-      country,
-      callbackUrl,
-      description: finalDescription,
+  async createOrder(body: any, requestKey?: string) {
+    const { price, amount, paymentPhone, correspondent, currency = "USD", country = "COD",
+      description, units, network } = body;
+    if (!paymentPhone || typeof paymentPhone !== "string" || !paymentPhone.trim())
+      throw new ValidationError("Le numéro de paiement est obligatoire.");
+    if (!correspondent || typeof correspondent !== "string" || !correspondent.trim())
+      throw new ValidationError("Le moyen de paiement est obligatoire.");
+    const targetAmount = Number(price || amount);
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) throw new ValidationError("Prix invalide.");
+    if (requestKey !== undefined && !/^[A-Za-z0-9_-]{16,100}$/.test(requestKey))
+      throw new ValidationError("Clé de commande invalide.");
+    const values = {
+      phoneNumber: body.phoneNumber, paymentPhone, contactPhone: body.contactPhone,
+      units, price: targetAmount, currency, country, network, offerId: body.offerId,
+      vendeurId: body.vendeurId, clientId: body.clientId, vendeurName: body.vendeurName,
+      vendeurPhone: body.vendeurPhone, correspondent: correspondent.trim().toUpperCase(), description,
     };
-
-    const paymentResponse = await cabupayPaymentService.createDeposit(depositDTO);
-    const paymentData = paymentResponse?.data;
-    const depositId = paymentData?.depositId;
-
-    if (depositId) {
-      order.depositId = depositId;
-      order.depositExistence = "FOUND";
+    const digest = (value: string) => createHash("sha256").update(value).digest("hex");
+    const checkoutKey = requestKey ? digest(requestKey) : undefined;
+    const checkoutFingerprint = digest(JSON.stringify(values));
+    await Order.init(); // The unique sparse index must exist before accepting a keyed checkout.
+    const replay = async () => {
+      const prior = await Order.findOne({ checkoutKey }).select("+checkoutFingerprint");
+      if (!prior) throw new ConflictError("Cette commande est en cours. Réessayez avec la même référence.");
+      if (prior.checkoutFingerprint !== checkoutFingerprint)
+        throw new ConflictError("Cette référence correspond à une autre commande. Retrouvez son suivi avant de recommencer.");
+      return { order: prior, payment: null, replayed: true };
+    };
+    if (checkoutKey && await Order.exists({ checkoutKey })) return replay();
+    let order: any;
+    try {
+      order = await Order.create({ ...values, status: "PENDING", checkoutKey,
+        checkoutFingerprint, paymentInitiationState: "starting", whatsappSent: false,
+        whatsappProcessing: false, affiliateVersion: 0 });
+    } catch (error: any) {
+      if (checkoutKey && error.code === 11000) return replay();
+      throw error;
     }
-
-    const pawaStatus =
-      paymentData?.status?.toUpperCase() ||
-      paymentData?.pawaResponse?.status?.toUpperCase();
-    const isRejected =
-      pawaStatus === "REJECTED" ||
-      pawaStatus === "FAILED" ||
-      paymentResponse?.success === false;
-
-    if (isRejected) {
-      const failureObj = paymentData?.pawaResponse?.failureReason;
-      const failureMsg =
-        failureObj?.failureMessage ||
-        paymentResponse?.message ||
-        "Paiement rejeté par la passerelle";
-      const failureCode = failureObj?.failureCode;
-
-      order.status = "FAILED";
-      order.failureCode = failureCode;
-      order.failureReason = failureCode
-        ? `${failureCode}: ${failureMsg}`
-        : failureMsg;
-
-      const messageError = getPawapayError(failureCode);
-      await order.save();
-
-      const err: any = new Error(messageError || `Échec de l'initialisation du paiement: ${failureMsg}`);
-      err.statusCode = 400;
-      err.order = order;
-      err.payment = { success: false, message: failureMsg, data: paymentData };
-      throw err;
+    const dto: CreateDepositDTO = {
+      appId: process.env.CABUPAY_APP_ID || "CABUNETS", clientReference: String(order._id),
+      amount: String(targetAmount), currency, phone: paymentPhone,
+      correspondent: values.correspondent, country,
+      callbackUrl: process.env.CABUPAY_CALLBACK_URL ||
+        "https://cabunets-production.up.railway.app/api/payments/cabupay-callback",
+      description: description || "Achat de " + units + " unités " + network,
+    };
+    let response: any;
+    try { response = await cabupayPaymentService.createDeposit(dto); }
+    catch {
+      await Order.updateOne({ _id: order._id, status: "PENDING" },
+        { $set: { paymentInitiationState: "unknown" }, $inc: { __v: 1 } });
+      return { order: await Order.findById(order._id), payment: null, initializationUncertain: true };
     }
-
-    await order.save();
-
-    return { order, payment: paymentResponse };
+    const data = response?.data;
+    const status = data?.status?.toUpperCase() || data?.pawaResponse?.status?.toUpperCase();
+    if (status === "REJECTED" || status === "FAILED" || response?.success === false) {
+      const reason = data?.pawaResponse?.failureReason || response?.message || "Paiement rejeté";
+      order = await applyOrderPayment(String(order._id), "FAILED", { depositId: data?.depositId, failureReason: reason });
+      // A confirmed callback wins over a late or contradictory initiation response.
+      if (order.status !== "FAILED") return { order, payment: response };
+      const error: any = new ValidationError(getPawapayError(reason?.failureCode) || "Paiement rejeté.");
+      error.order = order; error.payment = response; throw error;
+    }
+    if (data?.depositId) {
+      await Order.updateOne({ _id: order._id, status: "PENDING" },
+        { $set: { depositId: data.depositId, depositExistence: "FOUND", paymentInitiationState: "accepted" },
+          $inc: { __v: 1 } });
+    }
+    order = await Order.findById(order._id);
+    // Final status is verified by the callback or an explicit status query.
+    return { order, payment: response };
   }
 
   // ----------------------------------------------------------
@@ -422,10 +392,7 @@ class OrderService {
     }
 
     if (!order.depositId) {
-      const err: any = new Error("Aucun depositId (Cabupay) associé à cette commande.");
-      err.statusCode = 400;
-      err.order = order;
-      throw err;
+      return { order, payment: null, depositPaymentStatus: "INITIALIZING" };
     }
 
     const response = await cabupayPaymentService.getDeposit(order.depositId);
@@ -433,28 +400,18 @@ class OrderService {
 
     if (deposit?.status === "NOT_FOUND") {
       order.depositExistence = "NOT_FOUND";
-      await order.save();
-      return { order, payment: deposit, depositPaymentStatus: "NOT_FOUND" };
+      await Order.updateOne({ _id: id, status: "PENDING" }, { $set: { depositExistence: "NOT_FOUND" }, $inc: { __v: 1 } });
+      return { order: (await Order.findById(id))!, payment: deposit, depositPaymentStatus: "NOT_FOUND" };
     }
-
-    order.depositExistence = "FOUND";
 
     const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
+    const updated = await applyOrderPayment(id, paymentStatus || "PENDING", {
+      depositId: order.depositId, providerTransactionId: depositData?.providerTransactionId,
+      failureReason: depositData?.failureReason,
+    }, "auto");
 
-    if (paymentStatus === "COMPLETED") {
-      order.status = "COMPLETED";
-    } else if (paymentStatus === "FAILED") {
-      order.status = "FAILED";
-      if (depositData?.failureReason?.failureMessage) {
-        order.failureReason = depositData.failureReason.failureMessage;
-        order.failureCode = depositData.failureCode;
-      }
-    }
-
-    await order.save();
-
-    return { order, payment: deposit, depositPaymentStatus: paymentStatus };
+    return { order: updated, payment: deposit, depositPaymentStatus: paymentStatus };
   }
 
   // ----------------------------------------------------------
@@ -477,10 +434,7 @@ class OrderService {
     }
 
     if (!order.depositId) {
-      const err: any = new Error("Aucun depositId (Cabupay) associé à cette commande.");
-      err.statusCode = 400;
-      err.order = order;
-      throw err;
+      return { order, payment: null, depositPaymentStatus: "INITIALIZING" };
     }
 
     const response = await cabupayPaymentService.getDeposit(order.depositId);
@@ -488,32 +442,18 @@ class OrderService {
 
     if (deposit?.status === "NOT_FOUND") {
       order.depositExistence = "NOT_FOUND";
-      await order.save();
-      return { order, payment: deposit, depositPaymentStatus: "NOT_FOUND" };
+      await Order.updateOne({ _id: id, status: "PENDING" }, { $set: { depositExistence: "NOT_FOUND" }, $inc: { __v: 1 } });
+      return { order: (await Order.findById(id))!, payment: deposit, depositPaymentStatus: "NOT_FOUND" };
     }
-
-    order.depositExistence = "FOUND";
 
     const depositData = deposit?.data;
     const paymentStatus = depositData?.status?.toUpperCase();
+    const updated = await applyOrderPayment(id, paymentStatus || "PENDING", {
+      depositId: order.depositId, providerTransactionId: depositData?.providerTransactionId,
+      failureReason: depositData?.failureReason,
+    }, "manuel");
 
-    if (paymentStatus === "COMPLETED") {
-      order.status = "COMPLETED";
-    } else if (paymentStatus === "FAILED") {
-      order.status = "FAILED";
-      if (depositData?.failureReason?.failureMessage) {
-        order.failureReason = depositData.failureReason.failureMessage;
-        order.failureCode = depositData.failureCode;
-      }
-    }
-
-    if (OrderNotificationService.shouldSendNotification(order, paymentStatus)) {
-      await OrderNotificationService.sendWhatsAppNotification(order, "manuel");
-    }
-
-    await order.save();
-
-    return { order, payment: deposit, depositPaymentStatus: paymentStatus };
+    return { order: updated, payment: deposit, depositPaymentStatus: paymentStatus };
   }
 
   // ----------------------------------------------------------

@@ -43,10 +43,12 @@ function applyRoleScope(req: Request, filters: OrderFilters): OrderFilters {
 // ================= CREATE =================
 export const createOrder = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const result = await orderService.createOrder({ ...req.body, clientId: req.user?.userId });
+    const result = await orderService.createOrder({ ...req.body, clientId: req.user?.userId }, req.get("Idempotency-Key"));
     return res.status(201).json({
       success: true,
-      message: "Commande créée et paiement initialisé",
+      message: result.order?.status === "PENDING" && result.order?.paymentInitiationState !== "accepted"
+        ? "Commande enregistrée ; confirmation du paiement en attente"
+        : "Commande créée et paiement initialisé",
       ...result,
     });
   } catch (err: any) {

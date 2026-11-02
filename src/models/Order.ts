@@ -2,6 +2,9 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOrder extends Document {
+  checkoutKey?: string;
+  checkoutFingerprint?: string;
+  paymentInitiationState?: "starting" | "accepted" | "unknown";
   phoneNumber: string;
   paymentPhone?: string;
   contactPhone?: string;
@@ -42,6 +45,9 @@ export interface IOrder extends Document {
 
 const OrderSchema = new Schema<IOrder>(
   {
+    checkoutKey: { type: String, unique: true, sparse: true, select: false },
+    checkoutFingerprint: { type: String, select: false },
+    paymentInitiationState: { type: String, enum: ["starting", "accepted", "unknown"] },
     phoneNumber: { type: String, required: true },
     paymentPhone: { type: String, required: false },
     contactPhone: { type: String, required: false },

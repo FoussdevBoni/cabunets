@@ -7,10 +7,11 @@
     "start": "node dist/app.js",
     "dev": "nodemon --exec \"ts-node --transpile-only\" src/app.ts",
     "typecheck": "tsc --noEmit --incremental false",
-    "test": "node --test -r ts-node/register/transpile-only tests/affiliate-safety.test.ts tests/affiliate-lifecycle.integration.test.ts",
+    "test": "node --test -r ts-node/register/transpile-only tests/affiliate-safety.test.ts tests/affiliate-lifecycle.integration.test.ts tests/order-checkout-races.integration.test.ts",
     "test:unit": "node --test -r ts-node/register/transpile-only tests/affiliate-safety.test.ts",
     "test:integration": "node --test -r ts-node/register/transpile-only tests/affiliate-lifecycle.integration.test.ts",
-    "check:deployment": "ts-node --transpile-only scripts/checkAffiliateDeployment.ts"
+    "check:deployment": "ts-node --transpile-only scripts/checkAffiliateDeployment.ts",
+    "test:checkout": "node --test -r ts-node/register/transpile-only tests/order-checkout-races.integration.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",

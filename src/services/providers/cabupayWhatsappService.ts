@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 export interface OrderNotificationData {
+  orderId?: string;
   vendeurName: string;
   vendeurPhone: string;
   orderRef: string;
@@ -54,12 +55,13 @@ export class CabupayWhatsappService {
         {
           headers: {
             'Content-Type': 'application/json',
+            ...(data.orderId ? { 'Idempotency-Key': 'cabunets-order-' + data.orderId } : {}),
           },
           timeout: 10000,
         }
       );
 
-      if (response.data?.success) {
+      if (response.data?.success === true) {
         console.log(
           `✅ Notification WhatsApp envoyée à ${data.vendeurPhone} (${data.orderRef})`
         );
@@ -67,13 +69,14 @@ export class CabupayWhatsappService {
       }
 
       console.warn("⚠️ Réponse inattendue de l'API WhatsApp:", response.data);
-      return false;
+      if (response.data?.success === false) return false;
+      throw new Error("Résultat WhatsApp indéterminé");
     } catch (error: any) {
       console.error(
         '❌ Échec envoi notification WhatsApp via Cabupay:',
         error.response?.data || error.message
       );
-      return false;
+      throw error;
     }
   }
 
