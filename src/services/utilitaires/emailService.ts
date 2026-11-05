@@ -1,5 +1,31 @@
+import axios from "axios";
 // src/services/utilitaires/emailService.ts
 import { smtpService } from "../providers/smtpService";
+
+async function sendEmail(options: Parameters<typeof smtpService.send>[0]): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    await smtpService.send(options);
+    return;
+  }
+
+  const from = process.env.RESEND_FROM?.trim() || "Cabunets <no-reply@cabunets.com>";
+  try {
+    await axios.post("https://api.resend.com/emails", {
+      ...options,
+      from,
+      to: [options.to],
+    }, {
+      headers: { Authorization: "Bearer " + apiKey },
+      timeout: 10_000,
+      maxRedirects: 0,
+    });
+  } catch (error) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    console.error("[Resend] Email delivery request failed", { status });
+    throw new Error("Le service d’envoi email est indisponible.");
+  }
+}
 
 export const emailService = {
   async sendConfirmationOtp(to: string, otp: string): Promise<void> {
@@ -14,7 +40,7 @@ export const emailService = {
       </div>
     `;
 
-    await smtpService.send({
+    await sendEmail({
       to,
       subject: "Confirmation de votre compte Cabunets",
       html,
@@ -34,7 +60,7 @@ export const emailService = {
       </div>
     `;
 
-    await smtpService.send({
+    await sendEmail({
       to,
       subject: "Réinitialisation de votre mot de passe",
       html,
