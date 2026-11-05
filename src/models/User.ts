@@ -23,6 +23,7 @@ export interface IUser extends Document {
   loginCount: number;
   actionsCount: number;
 
+  passwordResetAttempts?: number;
   passwordResetOtp?: string;
   passwordResetExpires?: Date;
   emailConfirmationOtp?: string;
@@ -87,6 +88,7 @@ const userSchema = new Schema<IUser>(
     loginCount: { type: Number, default: 0, min: 0 },
     actionsCount: { type: Number, default: 0, min: 0 },
 
+    passwordResetAttempts: { type: Number, select: false },
     passwordResetOtp: { type: String, select: false },
     passwordResetExpires: { type: Date },
     emailConfirmationOtp: { type: String, select: false },

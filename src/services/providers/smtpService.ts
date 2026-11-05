@@ -11,6 +11,9 @@ class SmtpService {
       ...(process.env.SMTP_HOST ? { host: process.env.SMTP_HOST } : { service: "gmail" }),
       port: Number(process.env.SMTP_PORT ?? 587),
       secure: process.env.SMTP_SECURE === "true",
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
       auth: {
         user: process.env.SMTP_USER ?? process.env.MAIL_USER,
         pass: process.env.SMTP_PASS ?? process.env.MAIL_PASS,

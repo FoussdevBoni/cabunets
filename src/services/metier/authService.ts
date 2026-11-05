@@ -1,4 +1,5 @@
 // src/services/metier/authService.ts
+import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import { referralService } from "./referralService";
 import { Affiliate } from "../../models/Affiliate";
@@ -11,6 +12,7 @@ import { emailService } from "../utilitaires/emailService";
 import { validators } from "../../utils/validators";
 import { otp as otpUtil } from "../../utils/otp";
 import {
+  AppError,
   AuthError,
   NotFoundError,
   ValidationError,
@@ -207,60 +209,66 @@ export const authService = {
 
   // ---------- PASSWORD RESET ----------
   async requestPasswordReset(email: string) {
-    if (!email) {
-      throw new ValidationError("Email requis");
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      // On ne révèle jamais si l'email existe ou non
-      return { sent: true };
+    if (typeof email !== "string" || !validators.isEmail(email.trim())) {
+      throw new ValidationError("Adresse email invalide.");
     }
 
     const code = otpUtil.generate();
-    user.passwordResetOtp = otpUtil.hash(code);
-    user.passwordResetExpires = otpUtil.expiryFromNow(PASSWORD_RESET_TTL_MINUTES);
-    await user.save();
+    const passwordResetOtp = otpUtil.hash(code);
+    const passwordResetExpires = otpUtil.expiryFromNow(PASSWORD_RESET_TTL_MINUTES);
+    const user = await User.findOneAndUpdate({
+      email: email.trim().toLowerCase(),
+      $or: [
+        { passwordResetExpires: { $exists: false } },
+        { passwordResetExpires: { $lte: new Date(passwordResetExpires.getTime() - 60_000) } },
+      ],
+    }, {
+      $set: { passwordResetOtp, passwordResetExpires, passwordResetAttempts: 0 },
+    });
+    if (!user) return { sent: true };
 
     try {
-      await emailService.sendPasswordResetOtp(email, code);
-    } catch (err) {
-      console.error("Échec envoi email de reset :", err);
+      await emailService.sendPasswordResetOtp(user.email, code);
+    } catch {
+      await User.updateOne({ _id: user._id, passwordResetOtp }, {
+        $unset: { passwordResetOtp: 1, passwordResetExpires: 1, passwordResetAttempts: 1 },
+      });
+      console.error("[Password reset] SMTP delivery failed");
+      throw new AppError(503, "L’envoi du code est momentanément indisponible. Réessayez plus tard.");
     }
 
     return { sent: true };
   },
 
-  async resetPasswordWithOtp(
-    email: string,
-    code: string,
-    newPassword: string
-  ) {
-    if (!email || !code || !newPassword) {
-      throw new ValidationError("Email, OTP et nouveau mot de passe requis");
+  async resetPasswordWithOtp(email: string, code: string, newPassword: string) {
+    if (typeof email !== "string" || !validators.isEmail(email.trim()) ||
+        typeof code !== "string" || !validators.isOtp(code)) {
+      throw new ValidationError("Saisissez une adresse email et un code à 6 chiffres valides.");
     }
-    if (!validators.isStrongPassword(newPassword)) {
-      throw new ValidationError("Mot de passe trop court (min. 6 caractères)");
+    if (!validators.isStrongPassword(newPassword) || Buffer.byteLength(newPassword, "utf8") > 72) {
+      throw new ValidationError("Le mot de passe doit contenir au moins 6 caractères et au plus 72 octets.");
     }
 
-    const otpHash = otpUtil.hash(code);
-
-    const user = await User.findOne({
-      email,
-      passwordResetOtp: otpHash,
+    const user = await User.findOneAndUpdate({
+      email: email.trim().toLowerCase(),
       passwordResetExpires: { $gt: new Date() },
-    }).select("+password");
-
-    if (!user) {
-      throw new AuthError("OTP invalide ou expiré");
+      $or: [
+        { passwordResetAttempts: { $exists: false } },
+        { passwordResetAttempts: { $lt: 5 } },
+      ],
+    }, { $inc: { passwordResetAttempts: 1 } }).select("+passwordResetOtp");
+    const passwordResetOtp = otpUtil.hash(code);
+    if (!user || user.passwordResetOtp !== passwordResetOtp) {
+      throw new AuthError("Code invalide, expiré ou nombre d’essais atteint. Demandez un nouveau code si nécessaire.");
     }
 
-    user.password = newPassword;
-    user.passwordResetOtp = undefined;
-    user.passwordResetExpires = undefined;
-
-    await user.save();
-
+    const result = await User.updateOne({
+      _id: user._id, passwordResetOtp, passwordResetExpires: { $gt: new Date() },
+    }, {
+      $set: { password: await bcrypt.hash(newPassword, 10) },
+      $unset: { passwordResetOtp: 1, passwordResetExpires: 1, passwordResetAttempts: 1 },
+    });
+    if (!result.modifiedCount) throw new AuthError("Ce code n’est plus valide.");
     return { success: true };
   },
 
