@@ -381,9 +381,9 @@ export default function RulesPage() {
 
           {form.program === "affiliation_client" && (
             <Select
-              label="Commandes r?compens?es"
+              label="Commandes récompensées"
               options={[
-                { value: "first", label: "Premi?re commande admissible" },
+                { value: "first", label: "Première commande admissible" },
                 { value: "every", label: "Chaque commande admissible" },
               ]}
               value={form.clientOrderScope}
