@@ -14,6 +14,7 @@ export interface RewardRule extends BackendData {
   percentage?: number;
   cap?: number;
   currency: string;
+  clientOrderScope?: "first" | "every";
   availabilityDelayDays: number;
   active: boolean;
   startDate?: string;
@@ -30,6 +31,7 @@ export interface CreateRewardRulePayload {
   percentage?: number;
   cap?: number;
   currency?: string;
+  clientOrderScope?: "first" | "every";
   availabilityDelayDays?: number;
   active?: boolean;
   startDate?: string;

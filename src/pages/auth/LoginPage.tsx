@@ -131,7 +131,7 @@ export default function LoginPage() {
                     Mot de passe
                   </label>
                   <Link
-                    to="/forgot-password"
+                    to="/auth/forgot-password"
                     className="text-sm text-primary hover:text-primary/80 transition"
                   >
                     Mot de passe oublié?

@@ -54,6 +54,7 @@ interface FormState {
   percentage: string;
   cap: string;
   currency: string;
+  clientOrderScope: "first" | "every";
   availabilityDelayDays: string;
   active: boolean;
 }
@@ -67,6 +68,7 @@ const emptyForm: FormState = {
   percentage: "",
   cap: "",
   currency: "CDF",
+  clientOrderScope: "every",
   availabilityDelayDays: "7",
   active: true,
 };
@@ -107,6 +109,7 @@ export default function RulesPage() {
       percentage: rule.percentage?.toString() ?? "",
       cap: rule.cap?.toString() ?? "",
       currency: rule.currency,
+      clientOrderScope: rule.clientOrderScope ?? "every",
       availabilityDelayDays: rule.availabilityDelayDays.toString(),
       active: rule.active,
     });
@@ -141,6 +144,7 @@ export default function RulesPage() {
       percentage: form.percentage ? Number(form.percentage) : undefined,
       cap: form.cap ? Number(form.cap) : undefined,
       currency: form.currency || "CDF",
+      clientOrderScope: form.program === "affiliation_client" ? form.clientOrderScope : undefined,
       availabilityDelayDays: Number(form.availabilityDelayDays),
       active: form.active,
     };
@@ -374,6 +378,21 @@ export default function RulesPage() {
               setForm({ ...form, mode: e.target.value as RewardMode })
             }
           />
+
+          {form.program === "affiliation_client" && (
+            <Select
+              label="Commandes r?compens?es"
+              options={[
+                { value: "first", label: "Premi?re commande admissible" },
+                { value: "every", label: "Chaque commande admissible" },
+              ]}
+              value={form.clientOrderScope}
+              onChange={(e) => setForm({
+                ...form,
+                clientOrderScope: e.target.value === "first" ? "first" : "every",
+              })}
+            />
+          )}
 
           {(form.mode === "fixe" || form.mode === "hybride") && (
             <Input
