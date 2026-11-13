@@ -24,6 +24,7 @@ export interface IRewardRule extends Document {
 
   currency: string;
 
+  clientOrderScope?: "first" | "every";
   availabilityDelayDays: number;
 
   active: boolean;
@@ -90,6 +91,7 @@ const RewardRuleSchema = new Schema<IRewardRule>(
       uppercase: true,
     },
 
+    clientOrderScope: { type: String, enum: ["first", "every"], default: "every", required: true },
     availabilityDelayDays: {
       type: Number,
       default: 7,

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { RewardRule } from "../../models/RewardRule";
 
 const fields = ["name", "description", "program", "mode", "fixedAmount", "percentage", "cap",
-  "currency", "availabilityDelayDays", "active", "startDate", "endDate"];
+  "currency", "clientOrderScope", "availabilityDelayDays", "active", "startDate", "endDate"];
 
 export async function rewardRules(req: Request, res: Response) {
   try {

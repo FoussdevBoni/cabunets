@@ -33,7 +33,7 @@ export const commissionService = {
   // ----------------------------------------------------------
   // CREATE A COMMISSION
   // ----------------------------------------------------------
-  async create(params: CreateCommissionParams, session?: ClientSession) {
+  async create(params: CreateCommissionParams, session?: ClientSession): Promise<{ commission: InstanceType<typeof Commission>; alreadyExists: boolean }> {
     const {
       affiliateId,
       referralId,
@@ -43,6 +43,10 @@ export const commissionService = {
       eventId,
       orderAmount = 0,
     } = params;
+
+    if (program === "affiliation_client" && !session) {
+      return affiliateTransaction(affiliateId, tx => commissionService.create(params, tx), true);
+    }
 
     // 1. Idempotency check
     const existing = await Commission.findOne({ affiliateId, eventId }).session(session ?? null);
@@ -64,6 +68,11 @@ export const commissionService = {
       throw new NotFoundError(
         `Aucune règle active pour le programme "${program}"`
       );
+    }
+
+    if (program === "affiliation_client" && rule.clientOrderScope === "first") {
+      const prior = await Commission.findOne({ referralId, program }).session(session ?? null);
+      if (prior) return { commission: prior, alreadyExists: true };
     }
 
     let calculationAmount = orderAmount;
@@ -141,6 +150,7 @@ export const commissionService = {
         fixedAmount: rule.fixedAmount,
         percentage: rule.percentage,
         cap: rule.cap,
+        clientOrderScope: program === "affiliation_client" ? rule.clientOrderScope : undefined,
         availabilityDelayDays: rule.availabilityDelayDays,
       },
       availableAt,

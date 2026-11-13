@@ -35,6 +35,7 @@ export interface ICommission extends Document {
     fixedAmount?: number;
     percentage?: number;
     cap?: number;
+    clientOrderScope?: "first" | "every";
     availabilityDelayDays: number;
   };
 
@@ -129,6 +130,7 @@ const CommissionSchema = new Schema<ICommission>(
       fixedAmount: { type: Number },
       percentage: { type: Number },
       cap: { type: Number },
+      clientOrderScope: { type: String, enum: ["first", "every"] },
       availabilityDelayDays: { type: Number, required: true },
     },
 
