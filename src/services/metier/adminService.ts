@@ -50,7 +50,7 @@ export const adminService = {
           message: "Impossible de gérer un utilisateur avec ce rôle.",
         };
       }
-      if (!target.isActive) {
+      if (target.isActive === false) {
         return { success: false, message: "Utilisateur cible désactivé." };
       }
 

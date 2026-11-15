@@ -10,6 +10,10 @@ import { RewardWithdrawal } from "../../models/RewardWithdrawal";
 import { Referral } from "../../models/Referral";
 import { period, csvCell } from "../../utils/affiliateQuery";
 
+import { Affiliate } from "../../models/Affiliate";
+import { adminService } from "../../services/metier/adminService";
+import { NotFoundError, ValidationError } from "../../utils/errors";
+
 const router = Router();
 router.use(authMiddleware, (req, res, next) => {
   if (req.user?.role !== "admin") return res.status(403).json({ message: "Accès réservé aux administrateurs." });
@@ -32,6 +36,15 @@ router.post("/reconcile", handle(async () => ({
 router.post("/adjustments", handle(req => affiliateAdminService.adjustment(req.body)));
 router.get("/settings", handle(() => affiliateSettingsService.get()));
 router.put("/settings", handle(req => affiliateSettingsService.update(req.body.minWithdrawalAmount, req.user!.userId)));
+router.get("/clients", handle(req => affiliateAdminService.clients(req.query)));
+router.post("/affiliates/:id/manage", handle(async req => {
+  if (!await Affiliate.exists({ _id: req.params.id })) {
+    throw new NotFoundError("Compte affilié introuvable.");
+  }
+  const result = await adminService.manageUser(req.user!.userId, req.params.id);
+  if (!result.success) throw new ValidationError(result.message);
+  return result.data;
+}));
 router.get("/sellers", handle(req => affiliateAdminService.sellers(req.query)));
 router.post("/sellers/:id/approve", handle(req => affiliateLifecycleService.approveSeller(req.params.id, req.user!.userId)));
 router.post("/orders/:id/cancel", handle(req => affiliateLifecycleService.reverseOrder(req.params.id, "CANCELLED", req.body.reason)));

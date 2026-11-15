@@ -74,6 +74,18 @@ export const affiliateAdminService = {
     return issue;
   },
 
+  async clients(query: any) {
+    const { page, limit, skip } = pagination(query);
+    const filter = { type: "client" };
+    const [items, total] = await Promise.all([
+      Referral.find(filter).populate("filleulId", "username email isActive")
+        .populate("affiliateId", "username codeParrainage")
+        .sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit).lean(),
+      Referral.countDocuments(filter),
+    ]);
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+  },
+
   async sellers(query: any) {
     const { page, limit, skip } = pagination(query);
     const filter = { type: "vendeur" };
