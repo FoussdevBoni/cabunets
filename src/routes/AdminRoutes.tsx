@@ -1,3 +1,4 @@
+import ClientsPage from "../pages/admin/ClientsPage";
 import SellersPage from "../pages/admin/SellersPage";
 import { Routes, Route } from "react-router-dom";
 import { AdminLayout } from "../layouts/admin/AdminLayout";
@@ -20,6 +21,7 @@ export function AdminRoutes() {
           <Route path="affiliates" element={<AdminAffiliatesPage />} />
           <Route path="commissions" element={<AdminCommissionsPage />} />
           <Route path="withdrawals" element={<AdminWithdrawalsPage />} />
+          <Route path="clients" element={<ClientsPage />} />
           <Route path="sellers" element={<SellersPage />} />
           <Route path="rules" element={<AdminRulesPage />} />
           <Route path="anomalies" element={<AdminAnomaliesPage />} />

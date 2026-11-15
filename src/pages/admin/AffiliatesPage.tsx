@@ -1,3 +1,4 @@
+import { affiliateAdminService } from "../../services/affiliateAdminService";
 import { affiliateService } from "../../services/affiliateService";
 // src/pages/admin/AffiliatesPage.tsx
 
@@ -24,6 +25,20 @@ const statusOptions: { value: AffiliateStatus | ""; label: string }[] = [
 ];
 
 export default function AffiliatesPage() {
+  const [managing, setManaging] = useState<string | null>(null);
+  const [managementError, setManagementError] = useState("");
+  async function manage(id: string) {
+    if (managing || !window.confirm("Ouvrir la session de cet affilié ?")) return;
+    setManaging(id);
+    setManagementError("");
+    try {
+      await affiliateAdminService.action("affiliates/" + id + "/manage");
+      window.location.assign("/affiliate/overview");
+    } catch (error: any) {
+      setManagementError(error?.response?.data?.message ?? "Impossible d?ouvrir la session.");
+      setManaging(null);
+    }
+  }
   const [verificationError, setVerificationError] = useState("");
   const [verifying, setVerifying] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AffiliateStatus | undefined>();
@@ -88,6 +103,7 @@ export default function AffiliatesPage() {
 
   return (
     <div className="space-y-6">
+      {managementError && <p role="alert">{managementError}</p>}
       {verificationError && <p role="alert" className="text-red-600">{verificationError}</p>}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -140,6 +156,9 @@ export default function AffiliatesPage() {
 
               return (
                 <Card key={id}>
+                  <Button variant="outline" disabled={managing !== null} onClick={() => manage(id)}>
+                    Prendre le contrôle
+                  </Button>
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">
