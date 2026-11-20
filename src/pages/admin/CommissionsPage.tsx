@@ -197,9 +197,9 @@ export default function CommissionsPage() {
 
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <StatusBadge status={c.status} />
-                        {c.availableAt && c.status === "en_attente" && (
+                        {c.availableAt && ["en_attente", "detectee"].includes(c.status) && (
                           <span className="text-xs text-gray-500">
-                            Disponible le {formatDate(c.availableAt)}
+                            Validation automatique prévue le {formatDate(c.availableAt)}. Vous pouvez valider dès maintenant.
                           </span>
                         )}
                       </div>
