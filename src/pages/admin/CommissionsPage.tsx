@@ -31,9 +31,9 @@ const statusOptions: { value: CommissionStatus | ""; label: string }[] = [
 
 export default function CommissionsPage() {
   const [statusFilter, setStatusFilter] = useState<CommissionStatus | undefined>();
-  const { commissions, total, page, limit, setPage, loading, refetch } =
+  const { commissions, total, page, limit, setPage, loading, refetch, error: listError } =
     useAdminCommissions({ status: statusFilter });
-  const { validate, cancel, processDue, loading: actionLoading } =
+  const { validate, cancel, processDue, loading: actionLoading, error: actionError } =
     useCommissionActions();
 
   // Modal d'annulation
@@ -128,6 +128,11 @@ export default function CommissionsPage() {
         </div>
       </div>
 
+      {(actionError || listError) && (
+        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {actionError || listError}
+        </p>
+      )}
       {/* Liste */}
       {loading ? (
         <div className="space-y-3">

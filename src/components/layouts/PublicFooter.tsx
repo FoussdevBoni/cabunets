@@ -1,6 +1,7 @@
 // src/components/layouts/PublicFooter.tsx
 
 import { Link } from "react-router-dom";
+import { BrandLogo } from "../ui/BrandLogo";
 
 export function PublicFooter() {
   return (
@@ -10,10 +11,7 @@ export function PublicFooter() {
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-white font-bold text-lg">C</span>
-              </div>
-              <span className="text-xl font-bold text-white">CabuAffili</span>
+              <BrandLogo full />
             </div>
             <p className="text-sm text-gray-400 max-w-md">
               Le programme d'affiliation de Cabunets. Parrainez vos amis et gagnez

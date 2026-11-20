@@ -3,6 +3,7 @@
 import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { BrandLogo } from "../ui/BrandLogo";
 
 export function PublicHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -13,10 +14,7 @@ export function PublicHeader() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">CabuAffili</span>
+            <BrandLogo />
           </Link>
 
           {/* Nav desktop */}

@@ -2,6 +2,7 @@
 
 import { NavLink } from "react-router-dom";
 import type { NavItem } from "../../navigation/affiliateNav";
+import { BrandLogo } from "../ui/BrandLogo";
 
 interface SidebarProps {
   items: NavItem[];
@@ -13,7 +14,7 @@ export function Sidebar({ items, title }: SidebarProps) {
     <aside className="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200">
       {/* Logo / Titre */}
       <div className="h-16 shrink-0 flex items-center px-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-primary">{title}</h1>
+        <div aria-label={title}><BrandLogo /></div>
       </div>
 
       {/* Navigation */}

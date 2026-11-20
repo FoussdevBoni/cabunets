@@ -1,6 +1,7 @@
 // src/pages/auth/RegisterPage.tsx
 
 import { useState } from "react";
+import { BrandLogo } from "../../components/ui/BrandLogo";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Eye,
@@ -114,7 +115,7 @@ export default function RegisterPage() {
               className="flex items-center cursor-pointer"
               onClick={() => navigate("/")}
             >
-              <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
+              <BrandLogo />
             </div>
 
             <div className="flex items-center gap-4">

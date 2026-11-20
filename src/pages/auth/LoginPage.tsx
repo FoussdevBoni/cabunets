@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom"
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react"
 import { useAuth } from "../../hooks/auth/useAuth"
 import { authService } from "../../services/authService"
+import { BrandLogo } from "../../components/ui/BrandLogo"
 
 export default function LoginPage() {
   const location = useLocation();
@@ -52,11 +53,7 @@ export default function LoginPage() {
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex items-center cursor-pointer" onClick={() => navigate("/")}>
-              <img 
-                src="/logo.png" 
-                alt="Logo" 
-                className="h-8 w-auto"
-              />
+              <BrandLogo />
             </div>
             
             {/* Lien d'inscription */}

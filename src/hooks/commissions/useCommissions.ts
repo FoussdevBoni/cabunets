@@ -177,7 +177,7 @@ export function useCommissionActions() {
     try {
       return await commissionService.validate(commissionId);
     } catch (err: any) {
-      setError(err?.message ?? "Erreur lors de la validation");
+      setError(err?.response?.data?.message ?? err?.message ?? "Erreur lors de la validation");
       throw err;
     } finally {
       setLoading(false);
@@ -190,7 +190,7 @@ export function useCommissionActions() {
     try {
       return await commissionService.cancel(commissionId, reason);
     } catch (err: any) {
-      setError(err?.message ?? "Erreur lors de l'annulation");
+      setError(err?.response?.data?.message ?? err?.message ?? "Erreur lors de l'annulation");
       throw err;
     } finally {
       setLoading(false);
@@ -203,7 +203,7 @@ export function useCommissionActions() {
     try {
       return await commissionService.processDue();
     } catch (err: any) {
-      setError(err?.message ?? "Erreur lors du traitement");
+      setError(err?.response?.data?.message ?? err?.message ?? "Erreur lors du traitement");
       throw err;
     } finally {
       setLoading(false);
