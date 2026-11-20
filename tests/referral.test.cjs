@@ -34,3 +34,14 @@ test("expired or invalid referral codes are not attributed", () => {
  state.window.location.search = "";
  assert.equal(state.captureReferral(), undefined);
 });
+
+test("manual code works without a link and clearing a prefilled code stays cleared at submission", () => {
+ const state = setup();
+ state.setReferralCode(' aff-manual ');
+ assert.equal(state.captureReferral(false), 'AFF-MANUAL');
+ state.window.location.search = '?ref=AFF-LINK';
+ state.setReferralCode('');
+ assert.equal(state.captureReferral(false), undefined);
+ state.setReferralCode('AFF-EDITED');
+ assert.equal(state.captureReferral(false), 'AFF-EDITED');
+});

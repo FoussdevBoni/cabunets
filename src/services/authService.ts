@@ -26,7 +26,7 @@ export const authService = {
         username,
         avatar,
         profileData,
-        referralCode: captureReferral(),
+        referralCode: captureReferral(false),
       });
       clearReferral();
       return data;
