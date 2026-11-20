@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
     Mail,
@@ -10,12 +10,33 @@ import {
     Eye,
     EyeOff
 } from "lucide-react"
+import { apiErrorMessage } from "../../utils/checkoutSession"
 import { authService } from "../../services/authService"
 
 export default function ForgotPasswordPage() {
     const navigate = useNavigate()
     const [step, setStep] = useState<"email" | "code" | "success">("email")
     const [loading, setLoading] = useState(false)
+
+    const busy = useRef(false)
+    const [requestError, setRequestError] = useState("")
+    const [notice, setNotice] = useState("")
+
+    const submit = async (operation: () => Promise<void>) => {
+        if (busy.current) return
+        busy.current = true
+        setLoading(true)
+        setRequestError("")
+        setNotice("")
+        try {
+            await operation()
+        } catch (error) {
+            setRequestError(apiErrorMessage(error, "La demande a échoué. Réessayez."))
+        } finally {
+            busy.current = false
+            setLoading(false)
+        }
+    }
 
     // États pour afficher/masquer les mots de passe
     const [showNewPassword, setShowNewPassword] = useState(false)
@@ -49,10 +70,12 @@ export default function ForgotPasswordPage() {
             return
         }
 
-        setLoading(true)
-        await authService.requestPasswordReset(form.email)
-        setLoading(false)
-        setStep("code")
+        await submit(async () => {
+            const email = form.email.trim().toLowerCase()
+            await authService.requestPasswordReset(email)
+            setForm(prev => ({ ...prev, email }))
+            setStep("code")
+        })
     }
 
     const handleVerifyCode = async (e: React.FormEvent) => {
@@ -84,31 +107,17 @@ export default function ForgotPasswordPage() {
             return
         }
 
-        setLoading(true)
-        await authService.resetPasswordWithOtp(form.email, form.code, form.newPassword)
-
-        setLoading(false)
-        setStep("success")
+        await submit(async () => {
+            await authService.resetPasswordWithOtp(form.email, form.code, form.newPassword)
+            setForm(prev => ({ ...prev, code: "", newPassword: "", confirmPassword: "" }))
+            setStep("success")
+        })
     }
 
-    const resendCode = async () => {
-        if (!form.email) {
-            setErrors(prev => ({ ...prev, email: "L'email est requis" }))
-            return
-        }
-
-        if (!form.email.includes('@')) {
-            setErrors(prev => ({ ...prev, email: "Email invalide" }))
-            return
-        }
-        setLoading(true)
-        if (form.email) {
-            await authService.requestPasswordReset(form.email)
-
-            setLoading(false)
-            alert("Nouveau code envoyé à votre email")
-        }
-    }
+    const resendCode = () => submit(async () => {
+        await authService.requestPasswordReset(form.email)
+        setNotice("Si cette adresse correspond à un compte, vérifiez votre boîte de réception et vos indésirables. Attendez une minute entre deux demandes.")
+    })
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -149,6 +158,9 @@ export default function ForgotPasswordPage() {
                     </p>
                 </div>
 
+                {requestError && <p role="alert" className="mb-4 text-sm text-red-700">{requestError}</p>}
+                {notice && <p role="status" className="mb-4 text-sm text-gray-700">{notice}</p>}
+
                 {/* Étape 1 : Email */}
                 {step === "email" && (
                     <form onSubmit={handleSendCode} className="space-y-6">
@@ -160,6 +172,7 @@ export default function ForgotPasswordPage() {
                                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                                 <input
                                     type="email"
+                                    disabled={loading}
                                     value={form.email}
                                     onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
                                     className={`pl-10 w-full px-4 py-3 border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition ${errors.email ? "border-red-300" : "border-gray-300"
@@ -220,7 +233,7 @@ export default function ForgotPasswordPage() {
                                 <p className="mt-1 text-sm text-red-600">{errors.code}</p>
                             )}
                             <p className="mt-2 text-sm text-gray-500">
-                                Code à 6 chiffres envoyé à {form.email}
+                                Si un compte correspond à {form.email}, vérifiez votre boîte de réception et vos indésirables. Le code expire après 10 minutes.
                             </p>
 
                             <div className="mt-4 text-center">
@@ -250,6 +263,7 @@ export default function ForgotPasswordPage() {
                             <div className="relative">
                                 <input
                                     type={showNewPassword ? "text" : "password"}
+                                    autoComplete="new-password"
                                     value={form.newPassword}
                                     onChange={(e) => setForm(prev => ({ ...prev, newPassword: e.target.value }))}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition pr-10 ${errors.newPassword ? "border-red-300" : "border-gray-300"
@@ -281,6 +295,7 @@ export default function ForgotPasswordPage() {
                             <div className="relative">
                                 <input
                                     type={showConfirmPassword ? "text" : "password"}
+                                    autoComplete="new-password"
                                     value={form.confirmPassword}
                                     onChange={(e) => setForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                                     className={`w-full px-4 py-3 border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary transition pr-10 ${errors.confirmPassword ? "border-red-300" : "border-gray-300"
