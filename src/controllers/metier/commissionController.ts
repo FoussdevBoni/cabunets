@@ -85,7 +85,7 @@ export const validateCommission = async (req: Request, res: Response) => {
 
     const { commissionId } = req.params;
 
-    const result = await commissionService.validate(commissionId);
+    const result = await commissionService.validate(commissionId, { manualApproval: true });
 
     return res.status(200).json({
       message: result.alreadyValidated

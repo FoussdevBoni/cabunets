@@ -90,12 +90,12 @@ test("payment destinations use authenticated encryption and reject tampering", (
   }
 });
 
-test("validation credits exactly once inside the financial transaction, including old credits", async t => {
+test("immediate manual validation credits exactly once, including old credits", async t => {
   const session = { withTransaction: async (action: any) => action(), endSession: async () => {} };
   const id = new mongoose.Types.ObjectId();
   const affiliateId = new mongoose.Types.ObjectId();
   const commission: any = { _id: id, affiliateId, amount: 6000, currency: "CDF", status: "en_attente",
-    sourceType: "order", sourceId: "order", availableAt: new Date(0),
+    sourceType: "order", sourceId: "order", availableAt: new Date(Date.now() + 7 * 86400000),
     save: async (options: any) => { assert.equal(options.session, session); } };
   const query = (value: any): any => ({ session: async () => value, then: (resolve: any, reject: any) => Promise.resolve(value).then(resolve, reject) });
   t.mock.method(mongoose, "startSession", async () => session as any);
@@ -108,18 +108,18 @@ test("validation credits exactly once inside the financial transaction, includin
     assert.equal(options.session, session); writes++; credit = entries[0]; return [credit] as any;
   });
   const { commissionService } = await import("../src/services/metier/commissionService");
-  await commissionService.validate(String(id));
+  await commissionService.validate(String(id), { manualApproval: true });
   assert.equal(writes, 1);
   assert.equal(commission.status, "disponible");
-  await commissionService.validate(String(id));
+  await commissionService.validate(String(id), { manualApproval: true });
   assert.equal(writes, 1);
   commission.status = "en_attente";
-  await commissionService.validate(String(id));
+  await commissionService.validate(String(id), { manualApproval: true });
   assert.equal(writes, 1, "an old pending credit must not be credited twice");
 });
-test("validation cannot bypass the availability delay", async t => {
+test("automatic validation cannot bypass the availability delay", async t => {
   const session = { withTransaction: async (action: any) => action(), endSession: async () => {} };
-  const commission: any = { affiliateId: "affiliate", status: "en_attente", availableAt: new Date(Date.now() + 86400000) };
+  const commission: any = { affiliateId: "affiliate", status: "en_attente", sourceType: "order", sourceId: "order", availableAt: new Date(Date.now() + 86400000) };
   t.mock.method(mongoose, "startSession", async () => session as any);
   t.mock.method(Affiliate, "findOneAndUpdate", async () => ({} as any));
   t.mock.method(Commission, "findById", () => ({
@@ -128,6 +128,9 @@ test("validation cannot bypass the availability delay", async t => {
   }) as any);
   const { commissionService } = await import("../src/services/metier/commissionService");
   await assert.rejects(commissionService.validate("commission"), (e: any) => e.statusCode === 409);
+  t.mock.method(Order, "findOneAndUpdate", async () => null);
+  await assert.rejects(commissionService.validate("commission", { manualApproval: true }),
+    (e: any) => e.statusCode === 409 && /payée et livrée/.test(e.message));
 });
 
 test("ledger rejects document modification, replacement and deletion before database access", async () => {

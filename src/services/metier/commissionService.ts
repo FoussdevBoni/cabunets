@@ -168,7 +168,7 @@ export const commissionService = {
   // ----------------------------------------------------------
   // VALIDATE A COMMISSION (en_attente → disponible)
   // ----------------------------------------------------------
-  async validate(commissionId: string) {
+  async validate(commissionId: string, options: { manualApproval?: boolean } = {}) {
     const initial = await Commission.findById(commissionId);
     if (!initial) throw new NotFoundError("Commission introuvable");
     return affiliateTransaction(String(initial.affiliateId), async session => {
@@ -178,7 +178,8 @@ export const commissionService = {
       if (!["en_attente", "detectee"].includes(commission.status)) {
         throw new ConflictError("Cette commission ne peut pas être validée.");
       }
-      if (commission.availableAt && commission.availableAt > new Date()) {
+      // Only the explicit administrator action may approve ahead of the automatic due date.
+      if (!options.manualApproval && commission.availableAt && commission.availableAt > new Date()) {
         throw new ConflictError("Le délai de disponibilité n'est pas expiré.");
       }
       const sourceOrderId = commission.sourceType === "order" ? commission.sourceId : commission.qualifyingOrderId;
